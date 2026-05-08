@@ -35,7 +35,7 @@ $this->assign('title', 'Agents');
                     <tbody>
                         <tr v-for="agent in agents" :key="agent.id">
                             <td class="ps-4">
-                                <a :href="webroot + 'agents/view/' + agent.id" class="text-decoration-none fw-medium">
+                                <a :href="'<?= $this->Url->build('/agents/view/') ?>' + agent.id" class="text-decoration-none fw-medium">
                                     {{ agent.name }}
                                 </a>
                             </td>
@@ -48,7 +48,7 @@ $this->assign('title', 'Agents');
                             </td>
                             <td class="text-muted small">{{ formatDate(agent.created) }}</td>
                             <td>
-                                <a :href="webroot + 'agents/view/' + agent.id" class="btn btn-sm btn-outline-secondary me-1">
+                                <a :href="'<?= $this->Url->build('/agents/view/') ?>' + agent.id" class="btn btn-sm btn-outline-secondary me-1">
                                     <i class="bi bi-eye"></i>
                                 </a>
                             </td>

@@ -218,8 +218,29 @@ var Api = (function () {
         },
     };
 
+    /**
+     * Build a full URL relative to the application webroot.
+     *
+     * WHY: Vue 3 template expressions scope to the component instance, so the
+     * global `window.webroot` variable is NOT accessible as `webroot` inside a
+     * :href binding — it resolves to `_ctx.webroot` which is `undefined`.
+     * Use this helper for any programmatic navigation in JS:
+     *   window.location.href = Api.url('agents/view/' + id);
+     *
+     * For :href bindings in PHP templates, bake the prefix with PHP instead:
+     *   :href="'<?= $this->Url->build('/agents/view/') ?>' + agent.id"
+     *
+     * @param {string} path  Path relative to webroot (leading slash optional).
+     * @returns {string}     Full URL including the subdirectory prefix.
+     */
+    function url(path) {
+        var p = (path && path[0] === '/') ? path.slice(1) : (path || '');
+        return webroot + p;
+    }
+
     return {
         _toSlug: _toSlug,
+        url: url,
         createNamespace: createNamespace,
         auth: auth,
         agents: agents,

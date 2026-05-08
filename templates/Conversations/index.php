@@ -89,7 +89,7 @@ $this->assign('title', 'Conversations');
                     <tbody>
                         <tr v-for="conv in conversations" :key="conv.id">
                             <td class="ps-4">
-                                <a :href="webroot + 'conversations/view/' + conv.id" class="text-decoration-none fw-medium">
+                                <a :href="'<?= $this->Url->build('/conversations/view/') ?>' + conv.id" class="text-decoration-none fw-medium">
                                     {{ conv.title || 'Untitled #' + conv.id }}
                                 </a>
                             </td>

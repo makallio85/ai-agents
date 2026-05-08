@@ -95,7 +95,7 @@ $this->assign('title', 'Dashboard');
                             <tbody>
                                 <tr v-for="conv in conversations" :key="conv.id">
                                     <td class="ps-4">
-                                        <a :href="webroot + 'conversations/view/' + conv.id" class="text-decoration-none fw-medium">
+                                        <a :href="'<?= $this->Url->build('/conversations/view/') ?>' + conv.id" class="text-decoration-none fw-medium">
                                             {{ conv.title || 'Untitled #' + conv.id }}
                                         </a>
                                     </td>
@@ -131,7 +131,7 @@ $this->assign('title', 'Dashboard');
                         v-else
                         v-for="agent in agents"
                         :key="agent.id"
-                        :href="webroot + 'agents/view/' + agent.id"
+                        :href="'<?= $this->Url->build('/agents/view/') ?>' + agent.id"
                         class="list-group-item list-group-item-action"
                     >
                         <div class="d-flex align-items-center gap-2">

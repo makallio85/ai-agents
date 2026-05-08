@@ -13,8 +13,13 @@ use RecursiveIteratorIterator;
  * WHY: The application may be installed in a subdirectory (e.g.
  * http://localhost/ai-agents/). Any href or :href that starts with a literal
  * slash and a known route segment — instead of going through
- * $this->Url->build() or the JS `webroot` variable — will resolve to the
- * domain root and 404 in subdirectory installs.
+ * $this->Url->build() — will resolve to the domain root and 404 in
+ * subdirectory installs.
+ *
+ * Vue 3 template expressions are scoped to the component instance, so global
+ * JS variables like `window.webroot` are NOT accessible as `webroot` in a
+ * :href binding. `:href="webroot + 'agents/view/' + id"` resolves to
+ * `_ctx.webroot` which is `undefined`, producing "undefinedagents/view/1".
  *
  * HOW: Scan every .php file under templates/ and assert none contain the
  * antipatterns that caused this bug. The test fails as soon as a new
@@ -22,11 +27,13 @@ use RecursiveIteratorIterator;
  *
  * ALLOWED PATTERNS:
  *   PHP  → href="<?= $this->Url->build('/agents') ?>"
- *   Vue  → :href="webroot + 'agents/view/' + id"
+ *   Vue  → :href="'<?= $this->Url->build('/agents/view/') ?>' + agent.id"
+ *   JS   → Api.url('agents/view/' + id)  (for programmatic navigation)
  *
  * FORBIDDEN PATTERNS:
  *   PHP  → href="/agents"
  *   Vue  → :href="'/agents/view/' + id"
+ *   Vue  → :href="webroot + 'agents/view/' + id"
  */
 class TemplateUrlTest extends TestCase
 {
@@ -47,17 +54,29 @@ class TemplateUrlTest extends TestCase
     ];
 
     /**
-     * Vue :href bindings with hardcoded leading slash that bypass the `webroot`
-     * JS variable and break subdirectory installs.
+     * Vue :href bindings that produce broken URLs in subdirectory installs.
+     *
+     * Two antipatterns are caught here:
+     * 1. Hardcoded leading slash: `:href="'/agents/view/' + id"` — always
+     *    resolves from domain root, ignores subdirectory prefix.
+     * 2. Global `webroot` variable: `:href="webroot + 'agents/view/' + id"` —
+     *    Vue 3 template expressions scope to the component instance; `webroot`
+     *    resolves to `_ctx.webroot` which is `undefined`, not `window.webroot`.
+     *
+     * Correct pattern in PHP templates:
+     *   :href="'<?= $this->Url->build('/agents/view/') ?>' + agent.id"
+     * PHP bakes the subdirectory-aware prefix at render time; Vue appends only the ID.
+     *
      * Each entry is [ forbidden_pattern, description ].
      *
      * @var array<array{0: string, 1: string}>
      */
     private array $forbiddenVueHrefs = [
-        [":href=\"'/agents/", "Vue :href with hardcoded '/agents/ — use :href=\"webroot + 'agents/...\""],
-        [":href=\"'/conversations/", "Vue :href with hardcoded '/conversations/ — use :href=\"webroot + 'conversations/...\""],
-        [":href=\"'/dashboard", "Vue :href with hardcoded '/dashboard — use :href=\"webroot + 'dashboard'\""],
-        [":href=\"'/chat/", "Vue :href with hardcoded '/chat/ — use :href=\"webroot + 'chat/...\""],
+        [":href=\"'/agents/", "Vue :href with hardcoded '/agents/ — use :href=\"'<?= \$this->Url->build('/agents/view/') ?>' + agent.id\""],
+        [":href=\"'/conversations/", "Vue :href with hardcoded '/conversations/ — use :href=\"'<?= \$this->Url->build('/conversations/view/') ?>' + conv.id\""],
+        [":href=\"'/dashboard", "Vue :href with hardcoded '/dashboard — use \$this->Url->build('/dashboard')"],
+        [":href=\"'/chat/", "Vue :href with hardcoded '/chat/ — use :href=\"'<?= \$this->Url->build('/chat/view/') ?>' + id\""],
+        [':href="webroot +', "Vue :href uses global `webroot` variable — inaccessible in Vue 3 component scope; use PHP URL builder to bake the prefix"],
     ];
 
     /**
