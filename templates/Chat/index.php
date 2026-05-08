@@ -346,4 +346,4 @@ $this->assign('title', 'Chat');
     </div>
 </div>
 
-<?= $this->Html->script('vue/pages/Chat/index') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/Chat/index')); ?>
