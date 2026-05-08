@@ -73,7 +73,7 @@ $this->assign('title', 'Dashboard');
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-3">
                     <h6 class="mb-0 fw-semibold">Recent conversations</h6>
-                    <a href="/conversations" class="btn btn-sm btn-outline-primary">View all</a>
+                    <a href="<?= $this->Url->build('/conversations') ?>" class="btn btn-sm btn-outline-primary">View all</a>
                 </div>
                 <div class="card-body p-0">
                     <div v-if="loadingConversations" class="p-4 text-center text-muted">
@@ -95,7 +95,7 @@ $this->assign('title', 'Dashboard');
                             <tbody>
                                 <tr v-for="conv in conversations" :key="conv.id">
                                     <td class="ps-4">
-                                        <a :href="'/conversations/view/' + conv.id" class="text-decoration-none fw-medium">
+                                        <a :href="webroot + 'conversations/view/' + conv.id" class="text-decoration-none fw-medium">
                                             {{ conv.title || 'Untitled #' + conv.id }}
                                         </a>
                                     </td>
@@ -118,7 +118,7 @@ $this->assign('title', 'Dashboard');
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-3">
                     <h6 class="mb-0 fw-semibold">Active agents</h6>
-                    <a href="/agents" class="btn btn-sm btn-outline-primary">View all</a>
+                    <a href="<?= $this->Url->build('/agents') ?>" class="btn btn-sm btn-outline-primary">View all</a>
                 </div>
                 <div class="list-group list-group-flush">
                     <div v-if="loadingAgents" class="list-group-item text-center text-muted py-3">
@@ -131,7 +131,7 @@ $this->assign('title', 'Dashboard');
                         v-else
                         v-for="agent in agents"
                         :key="agent.id"
-                        :href="'/agents/view/' + agent.id"
+                        :href="webroot + 'agents/view/' + agent.id"
                         class="list-group-item list-group-item-action"
                     >
                         <div class="d-flex align-items-center gap-2">

@@ -12,7 +12,7 @@ $this->assign('title', 'Conversation details');
 
     <template v-else-if="conversation">
         <div class="d-flex align-items-center gap-3 mb-4">
-            <a href="/conversations" class="btn btn-sm btn-outline-secondary">
+            <a href="<?= $this->Url->build('/conversations') ?>" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i>
             </a>
             <div>

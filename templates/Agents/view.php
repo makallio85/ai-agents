@@ -12,7 +12,7 @@ $this->assign('title', 'Agent details');
 
     <template v-else-if="agent">
         <div class="d-flex align-items-center gap-3 mb-4">
-            <a href="/agents" class="btn btn-sm btn-outline-secondary">
+            <a href="<?= $this->Url->build('/agents') ?>" class="btn btn-sm btn-outline-secondary">
                 <i class="bi bi-arrow-left"></i>
             </a>
             <div>

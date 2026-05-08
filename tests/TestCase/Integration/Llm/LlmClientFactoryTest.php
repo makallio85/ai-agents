@@ -71,7 +71,11 @@ class LlmClientFactoryTest extends TestCase
 
     public function testMakeThrowsForOpenAiWhenKeyMissing(): void
     {
-        Configure::delete('Llm.openaiApiKey');
+        // Write an explicit empty string so the factory's ?? env() fallback is
+        // not reached — Configure::read() returns '' (not null), so env() is
+        // skipped, and empty('') triggers the missing-key exception regardless
+        // of whether OPENAI_API_KEY is set in the environment.
+        Configure::write('Llm.openaiApiKey', '');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('OPENAI_API_KEY is not configured');
@@ -80,7 +84,7 @@ class LlmClientFactoryTest extends TestCase
 
     public function testMakeThrowsForAnthropicWhenKeyMissing(): void
     {
-        Configure::delete('Llm.anthropicApiKey');
+        Configure::write('Llm.anthropicApiKey', '');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('ANTHROPIC_API_KEY is not configured');
