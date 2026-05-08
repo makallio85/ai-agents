@@ -10,42 +10,57 @@ use Migrations\BaseMigration;
  * requirePermission('chat', ...). Without rows in the permissions table
  * the RBAC check always returns false → 403 Forbidden for all users.
  *
- * WHAT: Grants full CRUD to Administrator and Superuser roles, and
- * create+read to the base User role (matching the conversations pattern).
+ * WHAT: Grants full CRUD to privileged roles (administrator, superuser) and
+ * create+read to the base user role — matching the conversations pattern.
+ * Role IDs are resolved by slug so the migration is safe across environments
+ * (dev, test, production) where auto-increment IDs may differ.
  */
 class AddChatPermissions extends BaseMigration
 {
     public function up(): void
     {
         $now = date('Y-m-d H:i:s');
+        $adapter = $this->getAdapter();
 
-        $rows = [];
+        // Resolve role IDs by slug — safe across environments
+        $rows = $adapter->fetchAll("SELECT id, slug FROM roles WHERE slug IN ('administrator', 'superuser', 'user')");
+        $rolesBySLug = [];
+        foreach ($rows as $row) {
+            $rolesBySLug[$row['slug']] = (int)$row['id'];
+        }
 
-        // Administrator (1) and Superuser (2) — full access
-        foreach ([1, 2] as $roleId) {
+        $inserts = [];
+
+        foreach (['administrator', 'superuser'] as $slug) {
+            if (!isset($rolesBySLug[$slug])) {
+                continue;
+            }
             foreach (['create', 'read', 'update', 'delete'] as $action) {
-                $rows[] = [
-                    'role_id' => $roleId,
-                    'module'  => 'chat',
-                    'action'  => $action,
-                    'created' => $now,
+                $inserts[] = [
+                    'role_id'  => $rolesBySLug[$slug],
+                    'module'   => 'chat',
+                    'action'   => $action,
+                    'created'  => $now,
                     'modified' => $now,
                 ];
             }
         }
 
-        // User (3) — create + read only
-        foreach (['create', 'read'] as $action) {
-            $rows[] = [
-                'role_id' => 3,
-                'module'  => 'chat',
-                'action'  => $action,
-                'created' => $now,
-                'modified' => $now,
-            ];
+        if (isset($rolesBySLug['user'])) {
+            foreach (['create', 'read'] as $action) {
+                $inserts[] = [
+                    'role_id'  => $rolesBySLug['user'],
+                    'module'   => 'chat',
+                    'action'   => $action,
+                    'created'  => $now,
+                    'modified' => $now,
+                ];
+            }
         }
 
-        $this->table('permissions')->insert($rows)->saveData();
+        if (!empty($inserts)) {
+            $this->table('permissions')->insert($inserts)->saveData();
+        }
     }
 
     public function down(): void
