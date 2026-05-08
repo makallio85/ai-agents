@@ -26,7 +26,7 @@ class AuthController extends AppController
         $this->viewBuilder()->setLayout('auth');
 
         if ($this->Authentication->getResult()?->isValid()) {
-            return $this->redirect('/dashboard');
+            return $this->redirect(['controller' => 'Dashboard', 'action' => 'index']);
         }
 
         return null;
@@ -39,6 +39,6 @@ class AuthController extends AppController
     {
         $this->Authentication->logout();
         /** @var Response */
-        return $this->redirect('/login');
+        return $this->redirect(['controller' => 'Auth', 'action' => 'login']);
     }
 }

@@ -23,7 +23,7 @@
                         mfaUserId.value = result.data.user_id;
                         step.value = 'mfa';
                     } else {
-                        window.location.href = '/dashboard';
+                        window.location.href = webroot + 'dashboard';
                     }
                 } catch (e) {
                     error.value = (e && e.message) ? e.message : 'Login failed. Please check your credentials.';
@@ -37,7 +37,7 @@
                 loading.value = true;
                 try {
                     await Api.auth.verifyMfa(mfaUserId.value, otpCode.value);
-                    window.location.href = '/dashboard';
+                    window.location.href = webroot + 'dashboard';
                 } catch (e) {
                     error.value = (e && e.message) ? e.message : 'Invalid code. Please try again.';
                     otpCode.value = '';

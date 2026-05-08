@@ -32,7 +32,7 @@ var Api = (function () {
 
         return fetch(url, options).then(function (response) {
             if (!response.ok && response.status === 401) {
-                window.location.href = '/login';
+                window.location.href = webroot + 'login';
                 return Promise.reject(new Error('Unauthenticated'));
             }
             return response.json().then(function (data) {

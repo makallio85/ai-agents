@@ -134,7 +134,7 @@ class Application extends BaseApplication implements
         $isApiRequest = str_starts_with((string)$request->getUri()->getPath(), '/api/');
         if (!$isApiRequest) {
             $service->setConfig([
-                'unauthenticatedRedirect' => '/login',
+                'unauthenticatedRedirect' => ['controller' => 'Auth', 'action' => 'login'],
                 'queryParam' => 'redirect',
             ]);
         }
