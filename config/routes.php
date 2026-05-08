@@ -53,8 +53,19 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/', ['controller' => 'Pages', 'action' => 'display', 'home']);
         $builder->connect('/pages/*', 'Pages::display');
 
-        // Login route (serves the SPA login page)
-        $builder->connect('/login', ['controller' => 'Pages', 'action' => 'display', 'login']);
+        // Auth routes
+        $builder->connect('/login', ['controller' => 'Auth', 'action' => 'login']);
+        $builder->connect('/auth/logout', ['controller' => 'Auth', 'action' => 'logout']);
+
+        // App pages
+        $builder->connect('/dashboard', ['controller' => 'Dashboard', 'action' => 'index']);
+        $builder->connect('/agents', ['controller' => 'Agents', 'action' => 'index']);
+        $builder->connect('/agents/view/{id}', ['controller' => 'Agents', 'action' => 'view'], ['id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/conversations', ['controller' => 'Conversations', 'action' => 'index']);
+        $builder->connect('/conversations/view/{id}', ['controller' => 'Conversations', 'action' => 'view'], ['id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/labels', ['controller' => 'Labels', 'action' => 'index']);
+        $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index']);
+        $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
 
         $builder->fallbacks();
     });
@@ -91,6 +102,9 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/labels/view/{id}', ['controller' => 'Labels', 'action' => 'view'], ['_name' => 'api.v1.labels.view', 'id' => '\d+']);
         $builder->connect('/labels/update/{id}', ['controller' => 'Labels', 'action' => 'update'], ['_name' => 'api.v1.labels.update', 'id' => '\d+']);
         $builder->connect('/labels/delete/{id}', ['controller' => 'Labels', 'action' => 'delete'], ['_name' => 'api.v1.labels.delete', 'id' => '\d+']);
+
+        // Logs (cross-agent view)
+        $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index'], ['_name' => 'api.v1.logs.index']);
 
         // GitHub Integrations
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index'], ['_name' => 'api.v1.github_integrations.index']);

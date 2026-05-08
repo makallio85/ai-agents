@@ -3,8 +3,18 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Authentication\Controller\Component\AuthenticationComponent;
+use Authorization\Controller\Component\AuthorizationComponent;
+use Cake\Controller\Component\FlashComponent;
+use Cake\Controller\Component\RequestHandlerComponent;
 use Cake\Controller\Controller;
 
+/**
+ * @property AuthenticationComponent $Authentication
+ * @property AuthorizationComponent $Authorization
+ * @property FlashComponent $Flash
+ * @property RequestHandlerComponent $RequestHandler
+ */
 class AppController extends Controller
 {
     public function initialize(): void

@@ -130,10 +130,14 @@ class Application extends BaseApplication implements
             \Authentication\Identifier\PasswordIdentifier::CREDENTIAL_PASSWORD => 'password',
         ];
 
-        $service->setConfig([
-            'unauthenticatedRedirect' => '/login',
-            'queryParam' => 'redirect',
-        ]);
+        // API requests get 401 JSON; web requests redirect to login page
+        $isApiRequest = str_starts_with((string)$request->getUri()->getPath(), '/api/');
+        if (!$isApiRequest) {
+            $service->setConfig([
+                'unauthenticatedRedirect' => '/login',
+                'queryParam' => 'redirect',
+            ]);
+        }
 
         $service->loadIdentifier('Authentication.Password', [
             'fields' => $fields,
@@ -147,7 +151,7 @@ class Application extends BaseApplication implements
         $service->loadAuthenticator('Authentication.Session');
         $service->loadAuthenticator('Authentication.Form', [
             'fields' => $fields,
-            'loginUrl' => '/login',
+            'loginUrl' => '/api/v1/auth/login',
         ]);
 
         return $service;
