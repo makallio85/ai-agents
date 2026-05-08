@@ -156,9 +156,15 @@ class Application extends BaseApplication implements
         ]);
 
         $service->loadAuthenticator('Authentication.Session');
+        // loginUrl must be a regex, not a plain string.
+        // DefaultUrlChecker prepends the request base attribute before comparing,
+        // so '/api/v1/auth/login' becomes '/ai-agents/api/v1/auth/login' in a
+        // subdirectory install and never matches the plain string. The regex
+        // anchors to the end of the path so it matches regardless of base prefix.
         $service->loadAuthenticator('Authentication.Form', [
             'fields' => $fields,
-            'loginUrl' => '/api/v1/auth/login',
+            'loginUrl' => '#/api/v1/auth/login$#',
+            'urlChecker' => ['useRegex' => true],
         ]);
 
         return $service;
