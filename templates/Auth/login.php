@@ -9,5 +9,7 @@ $this->assign('title', 'Sign in');
 
 <div id="login-app"></div>
 
-<?= $this->Html->script('vue/api') ?>
-<?= $this->Html->script('vue/pages/Login/index') ?>
+<?php
+$this->append('script', $this->Html->script('vue/api'));
+$this->append('script', $this->Html->script('vue/pages/Login/index'));
+?>

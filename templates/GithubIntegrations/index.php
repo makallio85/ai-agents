@@ -98,4 +98,4 @@ $this->assign('title', 'GitHub Integrations');
     </div>
 </div>
 
-<?= $this->Html->script('vue/pages/GithubIntegrations/index') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/GithubIntegrations/index')); ?>

@@ -118,4 +118,4 @@ $this->assign('title', 'Conversations');
     </div>
 </div>
 
-<?= $this->Html->script('vue/pages/Conversations/index') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/Conversations/index')); ?>

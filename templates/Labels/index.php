@@ -102,4 +102,4 @@ $this->assign('title', 'Labels');
     </div>
 </div>
 
-<?= $this->Html->script('vue/pages/Labels/index') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/Labels/index')); ?>

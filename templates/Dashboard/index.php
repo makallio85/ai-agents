@@ -151,4 +151,4 @@ $this->assign('title', 'Dashboard');
     </div>
 </div>
 
-<?= $this->Html->script('vue/pages/Dashboard/index') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/Dashboard/index')); ?>

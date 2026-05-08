@@ -98,4 +98,4 @@ $this->assign('title', 'Agents');
     </div>
 </div>
 
-<?= $this->Html->script('vue/pages/Agents/index') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/Agents/index')); ?>

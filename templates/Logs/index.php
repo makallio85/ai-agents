@@ -95,4 +95,4 @@ $this->assign('title', 'Logs');
     </div>
 </div>
 
-<?= $this->Html->script('vue/pages/Logs/index') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/Logs/index')); ?>

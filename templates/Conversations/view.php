@@ -100,4 +100,4 @@ $this->assign('title', 'Conversation details');
 <script>
     var ConversationViewConfig = { conversationId: <?= (int)$conversationId ?> };
 </script>
-<?= $this->Html->script('vue/pages/Conversations/view') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/Conversations/view')); ?>

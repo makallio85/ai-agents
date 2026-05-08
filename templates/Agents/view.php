@@ -93,4 +93,4 @@ $this->assign('title', 'Agent details');
 <script>
     var AgentViewConfig = { agentId: <?= (int)$agentId ?> };
 </script>
-<?= $this->Html->script('vue/pages/Agents/view') ?>
+<?php $this->append('script', $this->Html->script('vue/pages/Agents/view')); ?>
