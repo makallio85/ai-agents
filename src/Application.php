@@ -103,9 +103,16 @@ class Application extends BaseApplication implements
 
             // Cross Site Request Forgery (CSRF) Protection Middleware
             // https://book.cakephp.org/5/en/security/csrf.html#cross-site-request-forgery-csrf-middleware
-            ->add(new CsrfProtectionMiddleware([
-                'httponly' => true,
-            ]))
+            // API routes are excluded — they are stateless JSON endpoints authenticated
+            // via session cookie set at login, not browser form submissions. Including
+            // CSRF on API routes would require every fetch() call to read and send the
+            // token, while providing no additional security for JSON-only endpoints.
+            // Note: skipCheckCallback must be set via method call, not constructor config.
+            ->add((new CsrfProtectionMiddleware(['httponly' => true]))
+                ->skipCheckCallback(function (ServerRequestInterface $request): bool {
+                    return str_contains((string)$request->getUri()->getPath(), '/api/');
+                })
+            )
 
             // Authentication middleware — identifies the current user
             ->add(new AuthenticationMiddleware($this))
