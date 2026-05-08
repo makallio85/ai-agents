@@ -1,0 +1,14 @@
+parameters:
+	level: 8
+	treatPhpDocTypesAsCertain: false
+	bootstrapFiles:
+		- config/bootstrap.php
+	paths:
+		- src/
+		- plugins/DevOpsOrchestrator/src/
+	excludePaths:
+		- vendor/
+		- tmp/
+		- logs/
+	ignoreErrors:
+		- '#Offset .+ does not exist on array#'

@@ -1,0 +1,4 @@
+=== ISSUE START ===
+Type: bug
+Description: Something is broken but we forgot to add a title.
+=== ISSUE END ===

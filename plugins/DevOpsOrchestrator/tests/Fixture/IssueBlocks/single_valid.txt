@@ -1,0 +1,12 @@
+Some conversation text before the issue block.
+
+User: here is the issue I want to create
+
+=== ISSUE START ===
+Title: Fix login button not responding on mobile
+Type: bug
+Description: The login button on the mobile login page does not respond to taps on iOS Safari 16. The issue was introduced in v2.3.0. Users are unable to log in on mobile devices.
+Reproduction: Open the login page on iOS Safari. Tap the login button. Nothing happens.
+=== ISSUE END ===
+
+Some text after the block.

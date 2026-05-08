@@ -1,0 +1,13 @@
+=== ISSUE START ===
+Title: Add dark mode support
+Type: enhancement
+Description: Users have requested a dark mode theme for the dashboard. This should be toggleable and persisted in user preferences.
+=== ISSUE END ===
+
+Some text between blocks.
+
+=== ISSUE START ===
+Title: Database connection timeout on heavy load
+Type: bug
+Description: Under high load, database connections time out after 30 seconds. Connection pool needs to be increased.
+=== ISSUE END ===

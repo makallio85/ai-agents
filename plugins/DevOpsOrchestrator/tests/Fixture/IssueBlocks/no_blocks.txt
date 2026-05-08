@@ -1,0 +1,4 @@
+Just some regular conversation text.
+No issue blocks here.
+User: can you help me with something?
+Assistant: Sure, what do you need?
