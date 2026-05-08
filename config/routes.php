@@ -66,6 +66,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/labels', ['controller' => 'Labels', 'action' => 'index']);
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index']);
         $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
+        $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index']);
 
         $builder->fallbacks();
     });
@@ -105,6 +106,13 @@ return function (RouteBuilder $routes): void {
 
         // Logs (cross-agent view)
         $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index'], ['_name' => 'api.v1.logs.index']);
+
+        // Chat sessions
+        $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index'], ['_name' => 'api.v1.chat.index']);
+        $builder->connect('/chat/create', ['controller' => 'Chat', 'action' => 'create'], ['_name' => 'api.v1.chat.create']);
+        $builder->connect('/chat/view/{id}', ['controller' => 'Chat', 'action' => 'view'], ['_name' => 'api.v1.chat.view', 'id' => '\d+']);
+        $builder->connect('/chat/delete/{id}', ['controller' => 'Chat', 'action' => 'delete'], ['_name' => 'api.v1.chat.delete', 'id' => '\d+']);
+        $builder->connect('/chat/message/{id}', ['controller' => 'Chat', 'action' => 'message'], ['_name' => 'api.v1.chat.message', 'id' => '\d+']);
 
         // GitHub Integrations
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index'], ['_name' => 'api.v1.github_integrations.index']);

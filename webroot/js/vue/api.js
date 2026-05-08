@@ -151,6 +151,73 @@ var Api = (function () {
         del: function (id) { return _coreRequest('DELETE', 'github-integrations/delete/' + id); },
     };
 
+    /**
+     * Chat session API namespace.
+     *
+     * The message() method is special: it POSTs the user message to the
+     * server and returns a ReadableStream that emits parsed SSE events as
+     * objects with { type, content?, tokens_used?, message? }.
+     * Callers should iterate with a reader loop (see Chat/index.js).
+     */
+    var chat = {
+        index: function () { return _coreRequest('GET', 'chat'); },
+        view: function (id) { return _coreRequest('GET', 'chat/view/' + id); },
+        create: function (data) { return _coreRequest('POST', 'chat/create', data); },
+        del: function (id) { return _coreRequest('DELETE', 'chat/delete/' + id); },
+
+        /**
+         * Sends a user message and returns an async generator that yields
+         * parsed SSE event objects as they arrive from the server.
+         * Usage: for await (const event of Api.chat.message(id, text)) { ... }
+         */
+        message: async function* (sessionId, message) {
+            var url = webroot + 'api/v1/chat/message/' + sessionId;
+            var response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'text/event-stream',
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({ message: message }),
+            });
+
+            if (response.status === 401) {
+                window.location.href = webroot + 'login';
+                return;
+            }
+
+            if (!response.ok || !response.body) {
+                throw new Error('Chat stream request failed: HTTP ' + response.status);
+            }
+
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            while (true) {
+                var result = await reader.read();
+                if (result.done) break;
+                buffer += decoder.decode(result.value, { stream: true });
+
+                var parts = buffer.split('\n\n');
+                buffer = parts.pop(); // keep incomplete last chunk
+
+                for (var i = 0; i < parts.length; i++) {
+                    var part = parts[i].trim();
+                    if (!part.startsWith('data: ')) continue;
+                    var jsonStr = part.slice(6);
+                    try {
+                        yield JSON.parse(jsonStr);
+                    } catch (e) {
+                        // malformed chunk, skip
+                    }
+                }
+            }
+        },
+    };
+
     return {
         _toSlug: _toSlug,
         createNamespace: createNamespace,
@@ -160,5 +227,6 @@ var Api = (function () {
         labels: labels,
         logs: logs,
         githubIntegrations: githubIntegrations,
+        chat: chat,
     };
 })();

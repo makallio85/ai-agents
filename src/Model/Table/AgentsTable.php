@@ -21,6 +21,7 @@ class AgentsTable extends Table
         $this->hasMany('ExecutionHistory', ['foreignKey' => 'agent_id']);
         $this->hasMany('PromptVersions', ['foreignKey' => 'agent_id', 'dependent' => true]);
         $this->hasMany('Conversations', ['foreignKey' => 'agent_id']);
+        $this->hasMany('ChatSessions', ['foreignKey' => 'agent_id']);
     }
 
     public function validationDefault(Validator $validator): Validator
