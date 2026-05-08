@@ -59,7 +59,6 @@
             }
 
             function loadSession(id) {
-                sendError.value = '';
                 return Api.chat.view(id)
                     .then(function (data) {
                         activeSession.value = data.data;
@@ -75,7 +74,7 @@
                 activeSession.value = null;
                 messages.value = [];
                 inputText.value = '';
-                sendError.value = '';
+                sendError.value = '';       // clear when switching context
                 selectedAgentId.value = '';
             }
 
@@ -114,7 +113,7 @@
                 var text = inputText.value.trim();
                 if (!text || streaming.value || !activeSession.value) return;
 
-                sendError.value = '';
+                sendError.value = '';   // clear only here, at the start of a new send
                 inputText.value = '';
                 streaming.value = true;
                 streamBuffer.value = '';
@@ -147,12 +146,13 @@
                         }
                     }
                 } catch (err) {
-                    sendError.value = err.message || 'Failed to send message';
                     streaming.value = false;
                     streamBuffer.value = '';
-                    // Reload to restore consistent state (remove optimistic message)
+                    sendError.value = err.message || 'Failed to send message';
+                    // Reload to restore consistent state (remove optimistic message).
+                    // Ignore any loadSession failure so the original error stays visible.
                     if (activeSession.value) {
-                        await loadSession(activeSession.value.id);
+                        loadSession(activeSession.value.id).catch(function () {});
                     }
                 }
 
