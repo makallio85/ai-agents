@@ -19,9 +19,9 @@ class LabelsTable extends Table
 
     public function validationDefault(Validator $validator): Validator
     {
-        $validator->nonEmptyString('name')->maxLength('name', 100);
-        $validator->nonEmptyString('slug')->maxLength('slug', 100);
-        $validator->nonEmptyString('color')->maxLength('color', 7);
+        $validator->notEmptyString('name')->maxLength('name', 100);
+        $validator->notEmptyString('slug')->maxLength('slug', 100);
+        $validator->notEmptyString('color')->maxLength('color', 7);
         return $validator;
     }
 }
