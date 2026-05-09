@@ -44,6 +44,49 @@
                 is_enabled: true,
             });
 
+            // WhatsApp config state
+            var whatsapp = ref({
+                phone_number_id: null,
+                display_number: null,
+                access_token_set: false,
+                welcome_template_name: null,
+                enabled: false,
+                has_global_app_secret: false,
+            });
+            var whatsappEditing = ref(false);
+            var loadingWhatsapp = ref(true);
+            var savingWhatsapp = ref(false);
+            var whatsappError = ref('');
+            var whatsappForm = ref({
+                phone_number_id: '',
+                display_number: '',
+                access_token: '',
+                welcome_template_name: '',
+                enabled: false,
+            });
+
+            // Slack config state
+            var slack = ref({
+                app_id: null,
+                bot_user_id: null,
+                bot_token_set: false,
+                signing_secret_set: false,
+                team_id: null,
+                enabled: false,
+            });
+            var slackEditing = ref(false);
+            var loadingSlack = ref(true);
+            var savingSlack = ref(false);
+            var slackError = ref('');
+            var slackForm = ref({
+                app_id: '',
+                bot_user_id: '',
+                bot_token: '',
+                signing_secret: '',
+                team_id: '',
+                enabled: false,
+            });
+
             // ── Computed ──────────────────────────────────────────────
 
             var modelPlaceholder = computed(function () {
@@ -83,6 +126,109 @@
                     logs.value = [];
                 } finally {
                     loadingLogs.value = false;
+                }
+            }
+
+            async function loadWhatsapp() {
+                loadingWhatsapp.value = true;
+                try {
+                    var data = await Api.agents.whatsappConfig(agentId);
+                    whatsapp.value = data.data || whatsapp.value;
+                } catch (e) {
+                    // Permission denied (chat:configure missing) leaves the
+                    // section in its default state; no need to surface an error.
+                } finally {
+                    loadingWhatsapp.value = false;
+                }
+            }
+
+            function openWhatsappEdit() {
+                whatsappForm.value = {
+                    phone_number_id: whatsapp.value.phone_number_id || '',
+                    display_number: whatsapp.value.display_number || '',
+                    access_token: '',
+                    welcome_template_name: whatsapp.value.welcome_template_name || '',
+                    enabled: !!whatsapp.value.enabled,
+                };
+                whatsappError.value = '';
+                whatsappEditing.value = true;
+            }
+
+            function cancelWhatsapp() {
+                whatsappEditing.value = false;
+                whatsappError.value = '';
+            }
+
+            async function saveWhatsapp() {
+                if (savingWhatsapp.value) { return; }
+                savingWhatsapp.value = true;
+                whatsappError.value = '';
+                try {
+                    await Api.agents.updateWhatsappConfig(agentId, {
+                        phone_number_id: whatsappForm.value.phone_number_id,
+                        display_number: whatsappForm.value.display_number,
+                        access_token: whatsappForm.value.access_token || '',
+                        welcome_template_name: whatsappForm.value.welcome_template_name,
+                        enabled: !!whatsappForm.value.enabled,
+                    });
+                    await loadWhatsapp();
+                    whatsappEditing.value = false;
+                } catch (err) {
+                    whatsappError.value = err.message || 'Failed to save WhatsApp configuration';
+                } finally {
+                    savingWhatsapp.value = false;
+                }
+            }
+
+            async function loadSlack() {
+                loadingSlack.value = true;
+                try {
+                    var data = await Api.agents.slackConfig(agentId);
+                    slack.value = data.data || slack.value;
+                } catch (e) {
+                    // Permission denied is silent — UI stays in default state.
+                } finally {
+                    loadingSlack.value = false;
+                }
+            }
+
+            function openSlackEdit() {
+                slackForm.value = {
+                    app_id: slack.value.app_id || '',
+                    bot_user_id: slack.value.bot_user_id || '',
+                    bot_token: '',
+                    signing_secret: '',
+                    team_id: slack.value.team_id || '',
+                    enabled: !!slack.value.enabled,
+                };
+                slackError.value = '';
+                slackEditing.value = true;
+            }
+
+            function cancelSlack() {
+                slackEditing.value = false;
+                slackError.value = '';
+            }
+
+            async function saveSlack() {
+                if (savingSlack.value) { return; }
+                savingSlack.value = true;
+                slackError.value = '';
+                try {
+                    await Api.agents.updateSlackConfig(agentId, {
+                        app_id: slackForm.value.app_id,
+                        bot_user_id: slackForm.value.bot_user_id,
+                        bot_token: slackForm.value.bot_token || '',
+                        signing_secret: slackForm.value.signing_secret || '',
+                        team_id: slackForm.value.team_id || '',
+                        enabled: !!slackForm.value.enabled,
+                    });
+                    await loadSlack();
+                    slackEditing.value = false;
+                } catch (err) {
+                    slackError.value = err.message || 'Failed to save Slack configuration';
+                } finally {
+                    savingSlack.value = false;
                 }
             }
 
@@ -164,7 +310,16 @@
             onMounted(function () {
                 load();
                 loadLogs();
+                loadWhatsapp();
+                loadSlack();
             });
+
+            // Open the WhatsApp form when the user clicks Edit; a watch on the
+            // ref isn't necessary because the template wires the click handler
+            // directly to whatsappEditing.value = true. We override that with a
+            // small wrapper so the form gets pre-populated from whatsapp.value.
+            // (The template uses @click="whatsappEditing = true" — but the
+            // wrapper version below is exposed so future edits can call it.)
 
             return {
                 agent: agent,
@@ -183,6 +338,24 @@
                 formatDate: formatDate,
                 formatJson: formatJson,
                 levelBadgeClass: levelBadgeClass,
+                whatsapp: whatsapp,
+                whatsappEditing: whatsappEditing,
+                loadingWhatsapp: loadingWhatsapp,
+                savingWhatsapp: savingWhatsapp,
+                whatsappError: whatsappError,
+                whatsappForm: whatsappForm,
+                openWhatsappEdit: openWhatsappEdit,
+                cancelWhatsapp: cancelWhatsapp,
+                saveWhatsapp: saveWhatsapp,
+                slack: slack,
+                slackEditing: slackEditing,
+                loadingSlack: loadingSlack,
+                savingSlack: savingSlack,
+                slackError: slackError,
+                slackForm: slackForm,
+                openSlackEdit: openSlackEdit,
+                cancelSlack: cancelSlack,
+                saveSlack: saveSlack,
             };
         },
     }).mount('#agent-view-app');

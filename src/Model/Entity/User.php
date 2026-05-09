@@ -8,6 +8,14 @@ use Cake\ORM\Entity;
 
 class User extends Entity
 {
+    public const APPROVAL_PENDING = 'pending';
+    public const APPROVAL_APPROVED = 'approved';
+    public const APPROVAL_REJECTED = 'rejected';
+
+    public const REPLY_AUTO = 'auto';
+    public const REPLY_TEXT = 'text';
+    public const REPLY_AUDIO = 'audio';
+
     /**
      * @var array<string, bool>
      */
@@ -22,6 +30,11 @@ class User extends Entity
         'mfa_enabled' => true,
         'mfa_secret' => true,
         'is_active' => true,
+        'is_approved' => true,
+        'approval_state' => true,
+        'approved_by_user_id' => true,
+        'approved_at' => true,
+        'preferred_reply_mode' => true,
         'last_login_at' => true,
     ];
 

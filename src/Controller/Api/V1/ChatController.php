@@ -4,8 +4,11 @@ declare(strict_types=1);
 namespace App\Controller\Api\V1;
 
 use App\Integration\Llm\LlmClientFactory;
+use App\Messaging\Exception\HandoffStateException;
+use App\Messaging\Service\MessageDispatcher;
 use App\Model\Entity\Agent;
 use App\Model\Entity\ChatSession;
+use App\Model\Entity\User;
 use App\Service\AgentLogService;
 use App\Service\ChatSessionService;
 use App\Service\LlmService;
@@ -30,6 +33,7 @@ class ChatController extends AppController
 {
     private ChatSessionService $chatSessionService;
     private LlmService $llmService;
+    private MessageDispatcher $dispatcher;
 
     public function initialize(): void
     {
@@ -37,6 +41,7 @@ class ChatController extends AppController
         $logService = new AgentLogService();
         $this->chatSessionService = new ChatSessionService();
         $this->llmService = new LlmService(new LlmClientFactory(), $logService);
+        $this->dispatcher = new MessageDispatcher();
     }
 
     /**
@@ -272,5 +277,204 @@ class ChatController extends AppController
             echo 'data: ' . json_encode(['type' => 'error', 'message' => $e->getMessage()]) . "\n\n";
             flush();
         }
+    }
+
+    /**
+     * POST /api/v1/chat/escalate/:id
+     * Body: { reason?, assigned_user_id?, user_facing_notice? }
+     *
+     * Moves a session into pending_human (or directly to human if assigned_user_id is supplied).
+     * Any logged-in user may escalate any session they own; admins/superusers may escalate any.
+     */
+    public function escalate(int $id): void
+    {
+        $this->requirePermission('chat', 'escalate');
+        $user = $this->getCurrentUser();
+        if ($user === null) {
+            $this->error('Not authenticated', [], 401);
+            return;
+        }
+        $session = $this->loadSessionForHandoff($id, $user);
+        if ($session === null) {
+            return;
+        }
+
+        $data = $this->request->getData();
+        $assignTo = null;
+        if (!empty($data['assigned_user_id'])) {
+            /** @var User|null $assignTo */
+            $assignTo = TableRegistry::getTableLocator()->get('Users')
+                ->find()->where(['Users.id' => (int)$data['assigned_user_id']])->first();
+            if ($assignTo === null) {
+                $this->error('assigned_user_id not found', [], 422);
+                return;
+            }
+        }
+
+        try {
+            $this->dispatcher->escalateToHuman(
+                $session,
+                $assignTo,
+                $data['reason'] ?? null,
+                $data['user_facing_notice'] ?? null,
+            );
+            $this->success($session);
+        } catch (RuntimeException $e) {
+            $this->error($e->getMessage(), [], 422);
+        }
+    }
+
+    /**
+     * POST /api/v1/chat/assign/:id
+     * Body: { user_id }
+     *
+     * Picks up a pending_human session. Self-assign is allowed for any
+     * authenticated user; assigning to someone else requires chat:assign.
+     */
+    public function assign(int $id): void
+    {
+        $user = $this->getCurrentUser();
+        if ($user === null) {
+            $this->error('Not authenticated', [], 401);
+            return;
+        }
+        $session = $this->loadSessionForHandoff($id, $user, ownerOnly: false);
+        if ($session === null) {
+            return;
+        }
+
+        $targetId = (int)($this->request->getData('user_id') ?? $user->id);
+        $isSelfAssign = $targetId === $user->id;
+        if (!$isSelfAssign) {
+            $this->requirePermission('chat', 'assign');
+        }
+
+        /** @var User|null $target */
+        $target = TableRegistry::getTableLocator()->get('Users')
+            ->find()->where(['Users.id' => $targetId])->first();
+        if ($target === null) {
+            $this->error('user_id not found', [], 422);
+            return;
+        }
+
+        try {
+            $this->dispatcher->assignToHuman($session, $target);
+            $this->success($session);
+        } catch (RuntimeException $e) {
+            $this->error($e->getMessage(), [], 422);
+        }
+    }
+
+    /**
+     * POST /api/v1/chat/handoff-back/:id
+     * Body: { note? }
+     *
+     * Returns a human-handled session to agent (LLM) handling. Caller must be
+     * the current assignee or hold chat:assign.
+     */
+    public function handoffBack(int $id): void
+    {
+        $user = $this->getCurrentUser();
+        if ($user === null) {
+            $this->error('Not authenticated', [], 401);
+            return;
+        }
+        $session = $this->loadSessionForHandoff($id, $user, ownerOnly: false);
+        if ($session === null) {
+            return;
+        }
+        if ($session->assigned_user_id !== $user->id) {
+            $this->requirePermission('chat', 'assign');
+        }
+
+        try {
+            $this->dispatcher->returnToAgent($session, $this->request->getData('note'));
+            $this->success($session);
+        } catch (RuntimeException $e) {
+            $this->error($e->getMessage(), [], 422);
+        }
+    }
+
+    /**
+     * POST /api/v1/chat/human-reply/:id
+     * Body: { message }
+     *
+     * Sends an outbound reply on behalf of the assigned human. Persists with
+     * sender_user_id stamped, then enqueues SendMessageJob (or no-ops for
+     * channel='web', which delivers via the existing SSE flow).
+     */
+    public function humanReply(int $id): void
+    {
+        $user = $this->getCurrentUser();
+        if ($user === null) {
+            $this->error('Not authenticated', [], 401);
+            return;
+        }
+        $session = $this->loadSessionForHandoff($id, $user, ownerOnly: false);
+        if ($session === null) {
+            return;
+        }
+
+        $body = trim((string)($this->request->getData('message') ?? ''));
+        if ($body === '') {
+            $this->error('message is required', [], 422);
+            return;
+        }
+
+        try {
+            $reply = $this->dispatcher->replyAsHuman($session, $user, $body);
+            $this->success($reply, [], 201);
+        } catch (HandoffStateException $e) {
+            $this->error($e->getMessage(), [], 409);
+        } catch (RuntimeException $e) {
+            $this->error($e->getMessage(), [], 422);
+        }
+    }
+
+    /**
+     * GET /api/v1/chat/inbox
+     *
+     * Lists sessions awaiting a human (pending_human) plus those assigned
+     * to the caller (human). Used by the frontend's inbox sidebar filter.
+     */
+    public function inbox(): void
+    {
+        $this->requirePermission('chat', 'read');
+        $user = $this->getCurrentUser();
+        if ($user === null) {
+            $this->error('Not authenticated', [], 401);
+            return;
+        }
+
+        $sessions = TableRegistry::getTableLocator()->get('ChatSessions');
+        $rows = $sessions->find()
+            ->contain(['Agents', 'Users'])
+            ->where([
+                'OR' => [
+                    ['ChatSessions.assignment_state' => ChatSession::STATE_PENDING_HUMAN],
+                    [
+                        'ChatSessions.assignment_state' => ChatSession::STATE_HUMAN,
+                        'ChatSessions.assigned_user_id' => $user->id,
+                    ],
+                ],
+            ])
+            ->orderByDesc('ChatSessions.last_inbound_at')
+            ->all()
+            ->toList();
+        $this->success($rows, ['count' => count($rows)]);
+    }
+
+    private function loadSessionForHandoff(int $id, User $user, bool $ownerOnly = true): ?ChatSession
+    {
+        $session = $this->chatSessionService->findById($id);
+        if ($session === null) {
+            $this->error('Chat session not found', [], 404);
+            return null;
+        }
+        if ($ownerOnly && $session->user_id !== $user->id) {
+            $this->error('Chat session not found', [], 404);
+            return null;
+        }
+        return $session;
     }
 }

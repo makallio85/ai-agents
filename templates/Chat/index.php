@@ -249,7 +249,12 @@ $this->assign('title', 'Chat');
                     @click="loadSession(s.id)"
                 >
                     <span class="session-del" @click.stop="deleteSession(s.id)" title="Delete">✕</span>
-                    <div>{{ s.title || 'New chat' }}</div>
+                    <div>
+                        <span v-if="s.channel && s.channel !== 'web'" class="badge bg-success-subtle text-success border me-1" style="font-size:.62rem;text-transform:uppercase;">{{ s.channel }}</span>
+                        <span v-if="s.assignment_state === 'pending_human'" class="badge bg-warning-subtle text-warning border me-1" style="font-size:.62rem;">awaits human</span>
+                        <span v-else-if="s.assignment_state === 'human'" class="badge bg-info-subtle text-info border me-1" style="font-size:.62rem;">human</span>
+                        {{ s.title || 'New chat' }}
+                    </div>
                     <div class="session-agent">{{ s.agent ? s.agent.name : '' }}</div>
                 </div>
             </div>
