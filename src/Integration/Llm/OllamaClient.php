@@ -34,7 +34,10 @@ class OllamaClient implements LlmClientInterface
      */
     public function complete(array $messages, array $options = []): LlmResponse
     {
-        $model = (string)($options['model'] ?? 'llama3');
+        $model = (string)($options['model'] ?? '');
+        if ($model === '') {
+            throw new RuntimeException('Ollama model name is required. Set the model on the agent (e.g. "kahnwong/poro-2:8b-it").');
+        }
         $payload = $this->buildPayload($messages, $model, false);
 
         $json = json_encode($payload);
@@ -69,7 +72,10 @@ class OllamaClient implements LlmClientInterface
      */
     public function stream(array $messages, array $options, callable $onChunk): LlmResponse
     {
-        $model = (string)($options['model'] ?? 'llama3');
+        $model = (string)($options['model'] ?? '');
+        if ($model === '') {
+            throw new RuntimeException('Ollama model name is required. Set the model on the agent (e.g. "kahnwong/poro-2:8b-it").');
+        }
         $payload = $this->buildPayload($messages, $model, true);
 
         $json = json_encode($payload);
