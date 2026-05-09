@@ -149,25 +149,26 @@ class Application extends BaseApplication implements
             ]);
         }
 
-        $service->loadIdentifier('Authentication.Password', [
-            'fields' => $fields,
-            'resolver' => [
-                'className' => 'Authentication.Orm',
-                'userModel' => 'Users',
-                'finder' => 'active',
-            ],
-        ]);
-
         $service->loadAuthenticator('Authentication.Session');
-        // loginUrl must be a regex, not a plain string.
-        // DefaultUrlChecker prepends the request base attribute before comparing,
-        // so '/api/v1/auth/login' becomes '/ai-agents/api/v1/auth/login' in a
-        // subdirectory install and never matches the plain string. The regex
-        // anchors to the end of the path so it matches regardless of base prefix.
+        // In cakephp/authentication v4:
+        // - loadIdentifier() was removed; the identifier is now configured inline
+        //   on the authenticator via the 'identifier' key.
+        // - RegexUrlChecker was removed; DefaultUrlChecker now uses Router::url()
+        //   internally, which already prepends the subdirectory base, so a plain
+        //   path string like '/api/v1/auth/login' correctly resolves to
+        //   '/ai-agents/api/v1/auth/login' and matches the request.
         $service->loadAuthenticator('Authentication.Form', [
             'fields' => $fields,
-            'loginUrl' => '#/api/v1/auth/login$#',
-            'urlChecker' => ['useRegex' => true],
+            'loginUrl' => '/api/v1/auth/login',
+            'identifier' => [
+                'className' => 'Authentication.Password',
+                'fields' => $fields,
+                'resolver' => [
+                    'className' => 'Authentication.Orm',
+                    'userModel' => 'Users',
+                    'finder' => 'active',
+                ],
+            ],
         ]);
 
         return $service;

@@ -8,15 +8,17 @@ use Cake\Http\ServerRequest;
 use Cake\TestSuite\TestCase;
 
 /**
- * Tests that the Form authenticator's loginUrl matches when the app is
- * served from a subdirectory (e.g. localhost/ai-agents).
+ * Tests DefaultUrlChecker behaviour in cakephp/authentication v4.
  *
- * DefaultUrlChecker prepends the request `base` attribute before comparing,
- * so a plain string loginUrl like '/api/v1/auth/login' will never match
- * '/ai-agents/api/v1/auth/login' in production.
+ * v4 breaking change: RegexUrlChecker was removed. DefaultUrlChecker now uses
+ * Router::url() to resolve the configured loginUrl before comparing it against
+ * the request path. In a fully-booted application, Router::url('/api/v1/auth/login')
+ * returns the base-prefixed path (e.g. '/ai-agents/api/v1/auth/login'), so a plain
+ * string loginUrl works correctly in production.
  *
- * Fix: use a regex loginUrl that matches the path suffix regardless of
- * any base prefix.
+ * The integration test LoginUrlBasePathTest covers the end-to-end case with a
+ * properly booted Router. The unit tests here document the lower-level checker
+ * behaviour in isolation.
  */
 class LoginUrlSubdirectoryTest extends TestCase
 {
@@ -29,8 +31,10 @@ class LoginUrlSubdirectoryTest extends TestCase
     }
 
     /**
-     * Plain string loginUrl fails when app has a subdirectory base path.
-     * This is the bug that causes "Invalid email or password" in production.
+     * Plain string loginUrl fails in a unit-test context with a subdirectory base
+     * because Router::url() is not aware of the base in isolation.
+     * In a fully-booted application, Router::url('/api/v1/auth/login') resolves
+     * to '/ai-agents/api/v1/auth/login' and the check passes — see LoginUrlBasePathTest.
      */
     public function testPlainStringLoginUrlFailsWithSubdirectoryBase(): void
     {
@@ -44,17 +48,37 @@ class LoginUrlSubdirectoryTest extends TestCase
 
         $this->assertFalse(
             $result,
-            'A plain string loginUrl must NOT match when a base path is present — ' .
-            'DefaultUrlChecker prepends the base, so the compared path becomes ' .
-            '/ai-agents/api/v1/auth/login which differs from /api/v1/auth/login'
+            'In unit-test context, Router::url() does not prepend the base, so the ' .
+            'compared path /api/v1/auth/login does not equal /ai-agents/api/v1/auth/login. ' .
+            'The integration test LoginUrlBasePathTest validates the production behaviour.'
         );
     }
 
     /**
-     * Regex loginUrl must match even with a subdirectory base path.
-     * This is the correct configuration after the fix.
+     * Plain string loginUrl matches when there is no subdirectory base.
+     * Router::url('/api/v1/auth/login') returns '/api/v1/auth/login' and the
+     * request path is also '/api/v1/auth/login'.
      */
-    public function testRegexLoginUrlMatchesWithSubdirectoryBase(): void
+    public function testPlainStringLoginUrlMatchesWithoutBase(): void
+    {
+        $request = new ServerRequest([
+            'url' => '/api/v1/auth/login',
+            'base' => '',
+            'environment' => ['REQUEST_METHOD' => 'POST'],
+        ]);
+
+        $result = $this->checker->check($request, '/api/v1/auth/login', []);
+
+        $this->assertTrue($result, 'Plain string loginUrl must match when there is no base path');
+    }
+
+    /**
+     * In v4, DefaultUrlChecker does not support the useRegex option — it was
+     * removed along with RegexUrlChecker. Passing a regex string as loginUrl
+     * causes Router::url() to return the regex as-is, which does not match
+     * the request path.
+     */
+    public function testRegexLoginUrlNoLongerWorksInV4(): void
     {
         $request = new ServerRequest([
             'url' => '/api/v1/auth/login',
@@ -68,30 +92,11 @@ class LoginUrlSubdirectoryTest extends TestCase
             ['useRegex' => true]
         );
 
-        $this->assertTrue(
+        $this->assertFalse(
             $result,
-            'A regex loginUrl must match when a base path is present — ' .
-            'the regex anchors to the end of the path, so it matches regardless of prefix'
+            'In cakephp/authentication v4, DefaultUrlChecker does not support regex. ' .
+            'The useRegex option is silently ignored and the regex string is compared ' .
+            'literally against the request path, causing a mismatch.'
         );
-    }
-
-    /**
-     * Regex loginUrl must also match with no base path (root install).
-     */
-    public function testRegexLoginUrlMatchesWithoutBase(): void
-    {
-        $request = new ServerRequest([
-            'url' => '/api/v1/auth/login',
-            'base' => '',
-            'environment' => ['REQUEST_METHOD' => 'POST'],
-        ]);
-
-        $result = $this->checker->check(
-            $request,
-            '#/api/v1/auth/login$#',
-            ['useRegex' => true]
-        );
-
-        $this->assertTrue($result, 'Regex loginUrl must match when there is no base path');
     }
 }
