@@ -22,6 +22,17 @@ PHPUnit configuration is in `phpunit.xml.dist`. The bootstrap is `tests/bootstra
 
 - ALWAYS make sure full PHPUnit testsuite passes before committing changes
 
+## Bugfix workflow — test-first
+
+When fixing a bug, ALWAYS follow this order:
+
+1. Write a failing test that reproduces the bug first
+2. Verify the test fails (red) — confirming the bug is caught
+3. Fix the bug
+4. Verify the test passes (green) — the bugfix is complete
+
+A bugfix is not done until the covering test passes. Never fix the bug before writing the test.
+
 ## Code quality
 - ALWAYS make sure PHPStan passes before committing changes
 
@@ -58,6 +69,47 @@ $valid = (new SomeValidation())->setValue($rawValue)->validates();
 
 Validators should not normalise their input.
 Use in Services for business-logic checks. Do not duplicate with CakePHP Table validation rules.
+
+## Code block documentation
+
+Every non-trivial class, method, service, job, integration, and architectural pattern MUST have a PHPDoc block that explains:
+
+- **What** it does (one-line summary)
+- **Why** it exists — the business or technical reason, not just a restatement of the name
+- **How** it fits into the broader system — what calls it, what it depends on, what it produces
+- Any non-obvious constraints, edge cases, or gotchas (e.g. "must be idempotent", "rate-limited by GitHub")
+
+### Rules
+
+- ALWAYS add or update the doc block when creating or modifying a class or method
+- NEVER leave doc blocks stale — if behaviour changes, the doc block changes in the same commit
+- Doc blocks are not optional. They exist so that future Claude sessions and developers can understand decisions without reading the full context again
+- Prefer explaining **intent and reason** over restating types that are already in the signature
+
+### Example — good doc block
+
+```php
+/**
+ * Parses raw conversation text and extracts structured issue blocks.
+ *
+ * Issue blocks are delimited by === ISSUE START === / === ISSUE END ===.
+ * Used by ParseIssueJob to split a single pasted conversation into
+ * individual ParsedIssueDto objects before dispatching GitHub creation jobs.
+ *
+ * The `m` flag on body extraction regex is critical: without it `^fieldname`
+ * only matches at the very start of the string, not at the start of each line.
+ */
+class IssueParserService { ... }
+```
+
+### Example — bad doc block
+
+```php
+/**
+ * Parses issues.
+ */
+class IssueParserService { ... }
+```
 
 ## Best practices, PSR coding standards, conventions
 When coding:

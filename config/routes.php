@@ -53,8 +53,20 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/', ['controller' => 'Pages', 'action' => 'display', 'home']);
         $builder->connect('/pages/*', 'Pages::display');
 
-        // Login route (serves the SPA login page)
-        $builder->connect('/login', ['controller' => 'Pages', 'action' => 'display', 'login']);
+        // Auth routes
+        $builder->connect('/login', ['controller' => 'Auth', 'action' => 'login']);
+        $builder->connect('/auth/logout', ['controller' => 'Auth', 'action' => 'logout']);
+
+        // App pages
+        $builder->connect('/dashboard', ['controller' => 'Dashboard', 'action' => 'index']);
+        $builder->connect('/agents', ['controller' => 'Agents', 'action' => 'index']);
+        $builder->connect('/agents/view/{id}', ['controller' => 'Agents', 'action' => 'view'], ['id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/conversations', ['controller' => 'Conversations', 'action' => 'index']);
+        $builder->connect('/conversations/view/{id}', ['controller' => 'Conversations', 'action' => 'view'], ['id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/labels', ['controller' => 'Labels', 'action' => 'index']);
+        $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index']);
+        $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
+        $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index']);
 
         $builder->fallbacks();
     });
@@ -74,30 +86,40 @@ return function (RouteBuilder $routes): void {
         // Agent CRUD
         $builder->connect('/agents', ['controller' => 'Agents', 'action' => 'index'], ['_name' => 'api.v1.agents.index']);
         $builder->connect('/agents/create', ['controller' => 'Agents', 'action' => 'create'], ['_name' => 'api.v1.agents.create']);
-        $builder->connect('/agents/view/{id}', ['controller' => 'Agents', 'action' => 'view'], ['_name' => 'api.v1.agents.view', 'id' => '\d+']);
-        $builder->connect('/agents/update/{id}', ['controller' => 'Agents', 'action' => 'update'], ['_name' => 'api.v1.agents.update', 'id' => '\d+']);
-        $builder->connect('/agents/delete/{id}', ['controller' => 'Agents', 'action' => 'delete'], ['_name' => 'api.v1.agents.delete', 'id' => '\d+']);
-        $builder->connect('/agents/logs/{id}', ['controller' => 'Agents', 'action' => 'logs'], ['_name' => 'api.v1.agents.logs', 'id' => '\d+']);
+        $builder->connect('/agents/view/{id}', ['controller' => 'Agents', 'action' => 'view'], ['_name' => 'api.v1.agents.view', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/agents/update/{id}', ['controller' => 'Agents', 'action' => 'update'], ['_name' => 'api.v1.agents.update', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/agents/delete/{id}', ['controller' => 'Agents', 'action' => 'delete'], ['_name' => 'api.v1.agents.delete', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/agents/logs/{id}', ['controller' => 'Agents', 'action' => 'logs'], ['_name' => 'api.v1.agents.logs', 'id' => '\d+', 'pass' => ['id']]);
 
         // Conversation CRUD
         $builder->connect('/conversations', ['controller' => 'Conversations', 'action' => 'index'], ['_name' => 'api.v1.conversations.index']);
         $builder->connect('/conversations/create', ['controller' => 'Conversations', 'action' => 'create'], ['_name' => 'api.v1.conversations.create']);
-        $builder->connect('/conversations/view/{id}', ['controller' => 'Conversations', 'action' => 'view'], ['_name' => 'api.v1.conversations.view', 'id' => '\d+']);
-        $builder->connect('/conversations/delete/{id}', ['controller' => 'Conversations', 'action' => 'delete'], ['_name' => 'api.v1.conversations.delete', 'id' => '\d+']);
+        $builder->connect('/conversations/view/{id}', ['controller' => 'Conversations', 'action' => 'view'], ['_name' => 'api.v1.conversations.view', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/conversations/delete/{id}', ['controller' => 'Conversations', 'action' => 'delete'], ['_name' => 'api.v1.conversations.delete', 'id' => '\d+', 'pass' => ['id']]);
 
         // Labels
         $builder->connect('/labels', ['controller' => 'Labels', 'action' => 'index'], ['_name' => 'api.v1.labels.index']);
         $builder->connect('/labels/create', ['controller' => 'Labels', 'action' => 'create'], ['_name' => 'api.v1.labels.create']);
-        $builder->connect('/labels/view/{id}', ['controller' => 'Labels', 'action' => 'view'], ['_name' => 'api.v1.labels.view', 'id' => '\d+']);
-        $builder->connect('/labels/update/{id}', ['controller' => 'Labels', 'action' => 'update'], ['_name' => 'api.v1.labels.update', 'id' => '\d+']);
-        $builder->connect('/labels/delete/{id}', ['controller' => 'Labels', 'action' => 'delete'], ['_name' => 'api.v1.labels.delete', 'id' => '\d+']);
+        $builder->connect('/labels/view/{id}', ['controller' => 'Labels', 'action' => 'view'], ['_name' => 'api.v1.labels.view', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/labels/update/{id}', ['controller' => 'Labels', 'action' => 'update'], ['_name' => 'api.v1.labels.update', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/labels/delete/{id}', ['controller' => 'Labels', 'action' => 'delete'], ['_name' => 'api.v1.labels.delete', 'id' => '\d+', 'pass' => ['id']]);
+
+        // Logs (cross-agent view)
+        $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index'], ['_name' => 'api.v1.logs.index']);
+
+        // Chat sessions
+        $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index'], ['_name' => 'api.v1.chat.index']);
+        $builder->connect('/chat/create', ['controller' => 'Chat', 'action' => 'create'], ['_name' => 'api.v1.chat.create']);
+        $builder->connect('/chat/view/{id}', ['controller' => 'Chat', 'action' => 'view'], ['_name' => 'api.v1.chat.view', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/delete/{id}', ['controller' => 'Chat', 'action' => 'delete'], ['_name' => 'api.v1.chat.delete', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/message/{id}', ['controller' => 'Chat', 'action' => 'message'], ['_name' => 'api.v1.chat.message', 'id' => '\d+', 'pass' => ['id']]);
 
         // GitHub Integrations
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index'], ['_name' => 'api.v1.github_integrations.index']);
         $builder->connect('/github-integrations/create', ['controller' => 'GithubIntegrations', 'action' => 'create'], ['_name' => 'api.v1.github_integrations.create']);
-        $builder->connect('/github-integrations/view/{id}', ['controller' => 'GithubIntegrations', 'action' => 'view'], ['_name' => 'api.v1.github_integrations.view', 'id' => '\d+']);
-        $builder->connect('/github-integrations/update/{id}', ['controller' => 'GithubIntegrations', 'action' => 'update'], ['_name' => 'api.v1.github_integrations.update', 'id' => '\d+']);
-        $builder->connect('/github-integrations/delete/{id}', ['controller' => 'GithubIntegrations', 'action' => 'delete'], ['_name' => 'api.v1.github_integrations.delete', 'id' => '\d+']);
+        $builder->connect('/github-integrations/view/{id}', ['controller' => 'GithubIntegrations', 'action' => 'view'], ['_name' => 'api.v1.github_integrations.view', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/github-integrations/update/{id}', ['controller' => 'GithubIntegrations', 'action' => 'update'], ['_name' => 'api.v1.github_integrations.update', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/github-integrations/delete/{id}', ['controller' => 'GithubIntegrations', 'action' => 'delete'], ['_name' => 'api.v1.github_integrations.delete', 'id' => '\d+', 'pass' => ['id']]);
     });
 
     /*

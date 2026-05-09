@@ -82,7 +82,7 @@ class GitHubIssueServiceTest extends TestCase
         );
 
         $this->labelDetectionMock->method('detect')->willReturn([]);
-        $this->gitHubMock->method('ensureLabels')->willReturn(null);
+        $this->gitHubMock->method('ensureLabels');
         $this->gitHubMock->method('createIssue')->willThrowException(
             new GitHubException('API error', 500)
         );
@@ -102,7 +102,7 @@ class GitHubIssueServiceTest extends TestCase
         );
 
         $this->labelDetectionMock->method('detect')->willReturn([]);
-        $this->gitHubMock->method('ensureLabels')->willReturn(null);
+        $this->gitHubMock->method('ensureLabels');
 
         $this->gitHubMock
             ->expects($this->once())

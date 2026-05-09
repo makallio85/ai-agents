@@ -21,13 +21,14 @@ class AgentsTable extends Table
         $this->hasMany('ExecutionHistory', ['foreignKey' => 'agent_id']);
         $this->hasMany('PromptVersions', ['foreignKey' => 'agent_id', 'dependent' => true]);
         $this->hasMany('Conversations', ['foreignKey' => 'agent_id']);
+        $this->hasMany('ChatSessions', ['foreignKey' => 'agent_id']);
     }
 
     public function validationDefault(Validator $validator): Validator
     {
-        $validator->nonEmptyString('name')->maxLength('name', 150);
-        $validator->nonEmptyString('slug')->maxLength('slug', 150);
-        $validator->nonEmptyString('plugin')->maxLength('plugin', 150);
+        $validator->notEmptyString('name')->maxLength('name', 150);
+        $validator->notEmptyString('slug')->maxLength('slug', 150);
+        $validator->notEmptyString('plugin')->maxLength('plugin', 150);
         $validator->boolean('is_enabled');
         return $validator;
     }

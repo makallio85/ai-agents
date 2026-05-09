@@ -103,9 +103,16 @@ class Application extends BaseApplication implements
 
             // Cross Site Request Forgery (CSRF) Protection Middleware
             // https://book.cakephp.org/5/en/security/csrf.html#cross-site-request-forgery-csrf-middleware
-            ->add(new CsrfProtectionMiddleware([
-                'httponly' => true,
-            ]))
+            // API routes are excluded — they are stateless JSON endpoints authenticated
+            // via session cookie set at login, not browser form submissions. Including
+            // CSRF on API routes would require every fetch() call to read and send the
+            // token, while providing no additional security for JSON-only endpoints.
+            // Note: skipCheckCallback must be set via method call, not constructor config.
+            ->add((new CsrfProtectionMiddleware(['httponly' => true]))
+                ->skipCheckCallback(function (ServerRequestInterface $request): bool {
+                    return str_contains((string)$request->getUri()->getPath(), '/api/');
+                })
+            )
 
             // Authentication middleware — identifies the current user
             ->add(new AuthenticationMiddleware($this))
@@ -130,10 +137,14 @@ class Application extends BaseApplication implements
             \Authentication\Identifier\PasswordIdentifier::CREDENTIAL_PASSWORD => 'password',
         ];
 
-        $service->setConfig([
-            'unauthenticatedRedirect' => '/login',
-            'queryParam' => 'redirect',
-        ]);
+        // API requests get 401 JSON; web requests redirect to login page
+        $isApiRequest = str_starts_with((string)$request->getUri()->getPath(), '/api/');
+        if (!$isApiRequest) {
+            $service->setConfig([
+                'unauthenticatedRedirect' => ['controller' => 'Auth', 'action' => 'login'],
+                'queryParam' => 'redirect',
+            ]);
+        }
 
         $service->loadIdentifier('Authentication.Password', [
             'fields' => $fields,
@@ -145,9 +156,15 @@ class Application extends BaseApplication implements
         ]);
 
         $service->loadAuthenticator('Authentication.Session');
+        // loginUrl must be a regex, not a plain string.
+        // DefaultUrlChecker prepends the request base attribute before comparing,
+        // so '/api/v1/auth/login' becomes '/ai-agents/api/v1/auth/login' in a
+        // subdirectory install and never matches the plain string. The regex
+        // anchors to the end of the path so it matches regardless of base prefix.
         $service->loadAuthenticator('Authentication.Form', [
             'fields' => $fields,
-            'loginUrl' => '/login',
+            'loginUrl' => '#/api/v1/auth/login$#',
+            'urlChecker' => ['useRegex' => true],
         ]);
 
         return $service;
