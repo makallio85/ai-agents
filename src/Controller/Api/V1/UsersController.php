@@ -17,26 +17,28 @@ use Cake\I18n\DateTime;
 class UsersController extends AppController
 {
     /**
-     * GET /api/v1/users?approval_state=pending&role=whatsapp_guest
+     * GET /api/v1/users?approval_state=pending&channel=whatsapp
      *
-     * Lists users filtered by approval state and / or role slug. Used by the
-     * Messaging Guests admin page to show entries awaiting review across
-     * channels (whatsapp_guest, slack_guest, ...).
+     * Lists users filtered by approval state and / or external channel they
+     * arrived through. The channel filter joins through user_channel_identities
+     * so it generalises across WhatsApp, Slack, and any future channel that
+     * persists identity rows there. The response eager-loads identities so
+     * the UI can display channel chips per user.
      */
     public function index(): void
     {
         $this->requirePermission('users', 'list_pending');
 
         $state = (string)$this->request->getQuery('approval_state', '');
-        $roleSlug = (string)$this->request->getQuery('role', '');
+        $channel = (string)$this->request->getQuery('channel', '');
         $users = $this->fetchTable('Users');
-        $query = $users->find()->contain(['Roles']);
+        $query = $users->find()->contain(['Roles', 'UserChannelIdentities']);
         if ($state !== '') {
             $query = $query->where(['Users.approval_state' => $state]);
         }
-        if ($roleSlug !== '') {
-            $query = $query->matching('Roles', function ($q) use ($roleSlug) {
-                return $q->where(['Roles.slug' => $roleSlug]);
+        if ($channel !== '') {
+            $query = $query->matching('UserChannelIdentities', function ($q) use ($channel) {
+                return $q->where(['UserChannelIdentities.channel' => $channel]);
             });
         }
         $rows = $query->orderByDesc('Users.created')->all()->toList();

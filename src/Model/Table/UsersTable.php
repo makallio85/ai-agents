@@ -38,6 +38,11 @@ class UsersTable extends Table
         $this->hasMany('Conversations', [
             'foreignKey' => 'user_id',
         ]);
+
+        $this->hasMany('UserChannelIdentities', [
+            'foreignKey' => 'user_id',
+            'dependent' => true,
+        ]);
     }
 
     public function validationDefault(Validator $validator): Validator

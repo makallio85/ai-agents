@@ -32,10 +32,10 @@ $this->assign('title', 'Messaging Guests');
         <small class="text-muted me-3">Channel</small>
         <div class="btn-group btn-group-sm">
             <button class="btn" :class="channelFilter === '' ? 'btn-secondary' : 'btn-outline-secondary'" @click="setChannelFilter('')">All</button>
-            <button class="btn" :class="channelFilter === 'whatsapp_guest' ? 'btn-success' : 'btn-outline-success'" @click="setChannelFilter('whatsapp_guest')">
+            <button class="btn" :class="channelFilter === 'whatsapp' ? 'btn-success' : 'btn-outline-success'" @click="setChannelFilter('whatsapp')">
                 <i class="bi bi-whatsapp"></i> WhatsApp
             </button>
-            <button class="btn" :class="channelFilter === 'slack_guest' ? 'btn-primary' : 'btn-outline-primary'" @click="setChannelFilter('slack_guest')">
+            <button class="btn" :class="channelFilter === 'slack' ? 'btn-primary' : 'btn-outline-primary'" @click="setChannelFilter('slack')">
                 <i class="bi bi-slack"></i> Slack
             </button>
         </div>
@@ -66,9 +66,10 @@ $this->assign('title', 'Messaging Guests');
                     <tbody>
                         <tr v-for="u in users" :key="u.id">
                             <td class="ps-3">
-                                <span class="badge" :class="channelBadge(u)">
-                                    <i class="bi" :class="channelIcon(u)"></i> {{ channelLabel(u) }}
+                                <span v-for="ch in channelsFor(u)" :key="ch" class="badge me-1" :class="channelBadge(ch)">
+                                    <i class="bi" :class="channelIcon(ch)"></i> {{ channelLabel(ch) }}
                                 </span>
+                                <span v-if="channelsFor(u).length === 0" class="text-muted small">—</span>
                             </td>
                             <td class="small fw-medium">{{ identifierFor(u) }}</td>
                             <td class="small text-muted">{{ u.username }}</td>

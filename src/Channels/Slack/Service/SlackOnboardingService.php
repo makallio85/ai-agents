@@ -101,7 +101,7 @@ class SlackOnboardingService
     private function createGuest(array $profile, string $slackUserId): ?User
     {
         $roles = TableRegistry::getTableLocator()->get('Roles');
-        $role = $roles->find()->where(['slug' => 'slack_guest'])->first();
+        $role = $roles->find()->where(['slug' => 'unregistered'])->first();
         if ($role === null) {
             return null;
         }

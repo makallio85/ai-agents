@@ -151,13 +151,14 @@ class WhatsAppOnboardingService
         }
 
         // Auto-create a guest user so messages have something to attach to.
-        // Land in approval_state='pending' on the whatsapp_guest role until
-        // a superuser approves; ProcessInboundMessageJob blocks agent
-        // dispatch on is_approved so messages are buffered safely meanwhile.
+        // Land in approval_state='pending' on the channel-agnostic
+        // 'unregistered' role until a superuser approves;
+        // ProcessInboundMessageJob blocks agent dispatch on is_approved so
+        // messages are buffered safely meanwhile.
         $roles = TableRegistry::getTableLocator()->get('Roles');
-        $role = $roles->find()->where(['slug' => 'whatsapp_guest'])->first();
+        $role = $roles->find()->where(['slug' => 'unregistered'])->first();
         if ($role === null) {
-            // No whatsapp_guest role seeded — refuse to create rather than
+            // No 'unregistered' role seeded — refuse to create rather than
             // accidentally promote a stranger to the regular user role.
             return null;
         }
@@ -178,6 +179,20 @@ class WhatsAppOnboardingService
             return null;
         }
         /** @var User $entity */
+
+        // Persist a user_channel_identities row so the admin UI can show
+        // "WhatsApp" as the channel this user came in through, in parallel
+        // with how SlackOnboardingService records its own arrivals.
+        $identities = TableRegistry::getTableLocator()->get('UserChannelIdentities');
+        $identity = $identities->newEntity([
+            'user_id' => $entity->id,
+            'channel' => 'whatsapp',
+            'external_id' => $phone,
+            'display_name' => trim(($entity->first_name ?? '') . ' ' . ($entity->last_name ?? '')) ?: null,
+            'verified_at' => new DateTime(),
+        ]);
+        $identities->save($identity);
+
         return $entity;
     }
 

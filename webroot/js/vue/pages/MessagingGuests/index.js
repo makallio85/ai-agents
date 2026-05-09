@@ -1,9 +1,10 @@
 /**
  * Messaging Guests admin page.
  *
- * Lists users with approval-state and channel (role) filters. The two
- * filter groups combine: e.g. pending + Slack shows only Slack guests
- * awaiting approval. Approve / reject calls update the row in place.
+ * Lists users with approval-state and channel filters. The channel filter
+ * joins through user_channel_identities server-side, so a user with both
+ * a WhatsApp and a Slack identity surfaces under either filter. Channel
+ * chips on each row reflect every identity the user has registered.
  */
 (function () {
     'use strict';
@@ -28,7 +29,7 @@
                 try {
                     var params = {};
                     if (stateFilter.value) { params.approval_state = stateFilter.value; }
-                    if (channelFilter.value) { params.role = channelFilter.value; }
+                    if (channelFilter.value) { params.channel = channelFilter.value; }
                     var data = await Api.users.index(params);
                     users.value = data.data || [];
 
@@ -49,7 +50,7 @@
             }
 
             function setStateFilter(state) { stateFilter.value = state; load(); }
-            function setChannelFilter(role) { channelFilter.value = role; load(); }
+            function setChannelFilter(channel) { channelFilter.value = channel; load(); }
 
             async function approve(user) {
                 if (acting.value[user.id]) { return; }
@@ -82,34 +83,47 @@
                 }
             }
 
-            // Map a user's role.slug to channel-specific UI bits. Phone numbers
-            // come from users.phone_number; Slack identities are not on the
-            // User row directly — show the U-id we encoded in username.
-            function channelLabel(user) {
-                var slug = (user.role && user.role.slug) || '';
-                if (slug === 'whatsapp_guest') { return 'WhatsApp'; }
-                if (slug === 'slack_guest') { return 'Slack'; }
-                return user.role ? user.role.name : '—';
+            // Distinct list of channels this user has registered through.
+            // Falls back to inferring "whatsapp" from a phone_number on legacy
+            // rows that pre-date the user_channel_identities table.
+            function channelsFor(user) {
+                var identities = user.user_channel_identities || [];
+                var channels = identities.map(function (i) { return i.channel; });
+                if (channels.length === 0 && user.phone_number) {
+                    channels.push('whatsapp');
+                }
+                return Array.from(new Set(channels));
             }
 
-            function channelIcon(user) {
-                var slug = (user.role && user.role.slug) || '';
-                if (slug === 'whatsapp_guest') { return 'bi-whatsapp'; }
-                if (slug === 'slack_guest') { return 'bi-slack'; }
+            function channelLabel(ch) {
+                if (ch === 'whatsapp') { return 'WhatsApp'; }
+                if (ch === 'slack') { return 'Slack'; }
+                if (ch === 'email') { return 'Email'; }
+                return ch.charAt(0).toUpperCase() + ch.slice(1);
+            }
+
+            function channelIcon(ch) {
+                if (ch === 'whatsapp') { return 'bi-whatsapp'; }
+                if (ch === 'slack') { return 'bi-slack'; }
+                if (ch === 'email') { return 'bi-envelope'; }
                 return 'bi-person';
             }
 
-            function channelBadge(user) {
-                var slug = (user.role && user.role.slug) || '';
-                if (slug === 'whatsapp_guest') { return 'bg-success-subtle text-success border'; }
-                if (slug === 'slack_guest') { return 'bg-primary-subtle text-primary border'; }
+            function channelBadge(ch) {
+                if (ch === 'whatsapp') { return 'bg-success-subtle text-success border'; }
+                if (ch === 'slack') { return 'bg-primary-subtle text-primary border'; }
+                if (ch === 'email') { return 'bg-info-subtle text-info border'; }
                 return 'bg-secondary-subtle text-secondary border';
             }
 
+            // Pick the most useful identifier for the row: the user's phone
+            // (WhatsApp guests), the first Slack U-id, or the username fallback.
             function identifierFor(user) {
                 if (user.phone_number) { return user.phone_number; }
-                if (user.username && user.username.indexOf('slack_') === 0) {
-                    return user.username.slice(6).toUpperCase();
+                var identities = user.user_channel_identities || [];
+                if (identities.length > 0) {
+                    var first = identities[0];
+                    return first.display_name || first.email || first.external_id;
                 }
                 return user.username || ('#' + user.id);
             }
@@ -143,6 +157,7 @@
                 setChannelFilter: setChannelFilter,
                 approve: approve,
                 reject: reject,
+                channelsFor: channelsFor,
                 channelLabel: channelLabel,
                 channelIcon: channelIcon,
                 channelBadge: channelBadge,
