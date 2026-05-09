@@ -4,15 +4,21 @@ declare(strict_types=1);
 namespace App\Controller\Api\V1;
 
 use App\Integration\Llm\LlmClientFactory;
+use App\Integration\Llm\LlmMessage;
+use App\Integration\Llm\OpenAiClient;
 use App\Messaging\Exception\HandoffStateException;
 use App\Messaging\Service\MessageDispatcher;
 use App\Model\Entity\Agent;
 use App\Model\Entity\ChatSession;
 use App\Model\Entity\User;
 use App\Service\AgentLogService;
+use App\Service\AgentTools\AgentLoopService;
+use App\Service\AgentTools\GitHubToolProvider;
 use App\Service\ChatSessionService;
 use App\Service\LlmService;
+use Cake\Core\Configure;
 use Cake\ORM\TableRegistry;
+use DevOpsOrchestrator\Integration\GitHub\GitHubClient;
 use Ramsey\Uuid\Uuid;
 use RuntimeException;
 
@@ -247,20 +253,29 @@ class ChatController extends AppController
             $history = $this->chatSessionService->buildMessageHistory($session);
             $userId = $user->id;
 
-            $llmResponse = $this->llmService->stream(
-                $agent,
-                $history,
-                $executionId,
-                $userId,
-                function (string $delta) use (&$assembledContent): void {
-                    $assembledContent .= $delta;
-                    echo 'data: ' . json_encode(['type' => 'chunk', 'content' => $delta]) . "\n\n";
-                    if (ob_get_level() > 0) {
-                        ob_flush();
-                    }
-                    flush();
-                },
-            );
+            // Detect whether this agent has a GitHub token in its contexts.
+            // If so, run the agentic loop (tool calling) instead of plain streaming.
+            $githubToken = $this->extractContextValue($agent, 'github_token');
+            $useAgentLoop = $githubToken !== null && $agent->llm_provider === 'openai';
+
+            if ($useAgentLoop) {
+                $llmResponse = $this->runAgentLoop($agent, $history, $executionId, $githubToken, $assembledContent);
+            } else {
+                $llmResponse = $this->llmService->stream(
+                    $agent,
+                    $history,
+                    $executionId,
+                    $userId,
+                    function (string $delta) use (&$assembledContent): void {
+                        $assembledContent .= $delta;
+                        echo 'data: ' . json_encode(['type' => 'chunk', 'content' => $delta]) . "\n\n";
+                        if (ob_get_level() > 0) {
+                            ob_flush();
+                        }
+                        flush();
+                    },
+                );
+            }
 
             // Persist the completed assistant message
             $this->chatSessionService->addMessage(
@@ -476,5 +491,105 @@ class ChatController extends AppController
             return null;
         }
         return $session;
+    }
+
+    /**
+     * Extracts a named context value from the agent's agent_contexts collection.
+     * Returns null when the key is not found.
+     */
+    private function extractContextValue(Agent $agent, string $key): ?string
+    {
+        if (empty($agent->agent_contexts)) {
+            return null;
+        }
+        foreach ($agent->agent_contexts as $ctx) {
+            if ($ctx->key === $key) {
+                return $ctx->value;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Runs the agentic ReAct loop for tool-enabled agents (OpenAI + GitHub token).
+     *
+     * Builds the full message history with system prompt, constructs the
+     * GitHubToolProvider + AgentLoopService, then runs the loop. SSE events
+     * (tool_call, tool_result, chunk) are emitted directly to the response
+     * stream via the $onEvent callback.
+     *
+     * @param LlmMessage[] $history
+     * @return \App\Integration\Llm\LlmResponse
+     */
+    private function runAgentLoop(
+        Agent $agent,
+        array $history,
+        string $executionId,
+        string $githubToken,
+        string &$assembledContent,
+    ): \App\Integration\Llm\LlmResponse {
+        $apiKey = (string)(Configure::read('Llm.openaiApiKey') ?? env('OPENAI_API_KEY', ''));
+        $openAiClient = new OpenAiClient($apiKey);
+
+        $githubApiUrl = (string)(Configure::read('GitHub.apiUrl') ?? env('GITHUB_API_URL', 'https://api.github.com'));
+        $githubClient = new GitHubClient($githubToken, $githubApiUrl);
+
+        $toolProvider = new GitHubToolProvider($githubClient);
+        $loopService = new AgentLoopService($openAiClient, $toolProvider);
+
+        // Prepend system prompt (same logic as LlmService::buildMessages)
+        $messages = $this->buildAgentMessages($agent, $history);
+        $options = ['model' => $agent->llm_model ?? 'gpt-4o'];
+
+        return $loopService->run(
+            $messages,
+            $options,
+            function (string $eventJson) use (&$assembledContent): void {
+                $event = json_decode($eventJson, true);
+                if (is_array($event) && ($event['type'] ?? '') === 'chunk') {
+                    $assembledContent .= (string)($event['content'] ?? '');
+                }
+                echo 'data: ' . $eventJson . "\n\n";
+                if (ob_get_level() > 0) {
+                    ob_flush();
+                }
+                flush();
+            },
+        );
+    }
+
+    /**
+     * Prepends system prompt and agent context to the conversation history.
+     * Mirrors LlmService::buildMessages() so the agent loop gets the same
+     * context injection as normal streaming calls.
+     *
+     * @param LlmMessage[] $history
+     * @return LlmMessage[]
+     */
+    private function buildAgentMessages(Agent $agent, array $history): array
+    {
+        $systemParts = [];
+        if (!empty($agent->instructions)) {
+            $systemParts[] = (string)$agent->instructions;
+        }
+        if (!empty($agent->agent_contexts)) {
+            $contextLines = [];
+            foreach ($agent->agent_contexts as $ctx) {
+                // Never leak the github_token into the system prompt
+                if ($ctx->key === 'github_token') {
+                    continue;
+                }
+                $contextLines[] = "{$ctx->key}: {$ctx->value}";
+            }
+            if (!empty($contextLines)) {
+                $systemParts[] = "Agent context:\n" . implode("\n", $contextLines);
+            }
+        }
+
+        $messages = [];
+        if (!empty($systemParts)) {
+            $messages[] = new LlmMessage('system', implode("\n\n", $systemParts));
+        }
+        return array_merge($messages, $history);
     }
 }
