@@ -139,13 +139,28 @@ class GitHubClient implements GitHubClientInterface
         /** @var array<string, mixed>|null $data */
         $data = json_decode($rawResponse, true);
 
-        if ($statusCode === 403 || $statusCode === 429) {
-            throw new GitHubException('GitHub rate limit exceeded', $statusCode);
+        if ($statusCode === 429) {
+            $retryAfter = '';
+            foreach ($http_response_header as $header) {
+                if (stripos($header, 'Retry-After:') === 0) {
+                    $retryAfter = ' Retry after ' . trim(substr($header, 12)) . ' seconds.';
+                }
+            }
+            throw new GitHubException("GitHub API error 429: Rate limit exceeded.{$retryAfter}", $statusCode);
+        }
+
+        if ($statusCode === 403) {
+            $errorMsg = $data['message'] ?? 'Forbidden';
+            $hint = stripos($errorMsg, 'accessible') !== false || stripos($errorMsg, 'scope') !== false
+                ? ' The token is missing the required scope or repository permission.'
+                : '';
+            throw new GitHubException("GitHub API error 403: {$errorMsg}.{$hint}", $statusCode);
         }
 
         if ($statusCode >= 400) {
             $errorMsg = $data['message'] ?? 'Unknown error';
-            throw new GitHubException("GitHub API error {$statusCode}: {$errorMsg}", $statusCode);
+            $details = isset($data['errors']) ? ' Details: ' . json_encode($data['errors']) : '';
+            throw new GitHubException("GitHub API error {$statusCode}: {$errorMsg}.{$details}", $statusCode);
         }
 
         return $data ?? [];

@@ -135,7 +135,9 @@ class AgentLoopService
         try {
             $result = $this->toolProvider->dispatch($toolCall->name, $toolCall->arguments);
         } catch (\Throwable $e) {
-            $result = "Tool execution failed: {$e->getMessage()}";
+            // Return a structured error string so the LLM can accurately describe what went wrong.
+            // Prefixing with TOOL_ERROR prevents the model from confusing this with a normal result.
+            $result = "TOOL_ERROR: {$e->getMessage()}";
             $this->log(
                 "AgentLoop tool error: {$toolCall->name} — {$e->getMessage()}",
                 'error',

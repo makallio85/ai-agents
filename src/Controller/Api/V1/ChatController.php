@@ -590,10 +590,19 @@ class ChatController extends AppController
             }
         }
 
-        $messages = [];
-        if (!empty($systemParts)) {
-            $messages[] = new LlmMessage('system', implode("\n\n", $systemParts));
-        }
+        // Always append tool error handling instructions so the LLM reports errors accurately
+        // instead of hallucinating a cause (e.g. calling a 403 a "rate limit").
+        $systemParts[] = implode("\n", [
+            'Tool error handling:',
+            '- When a tool returns a result starting with TOOL_ERROR, report the exact error to the user.',
+            '- Never guess or invent a cause. Use only what the error message states.',
+            '- A 403 error means a permissions or token scope problem — NOT a rate limit.',
+            '- A 429 error means rate limit exceeded.',
+            '- A 404 error means the resource (repo, issue, file) was not found.',
+            '- Do not retry a failed tool call unless the user explicitly asks you to.',
+        ]);
+
+        $messages = [new LlmMessage('system', implode("\n\n", $systemParts))];
         return array_merge($messages, $history);
     }
 }
