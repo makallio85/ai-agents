@@ -110,7 +110,10 @@ class Application extends BaseApplication implements
             // Note: skipCheckCallback must be set via method call, not constructor config.
             ->add((new CsrfProtectionMiddleware(['httponly' => true]))
                 ->skipCheckCallback(function (ServerRequestInterface $request): bool {
-                    return str_contains((string)$request->getUri()->getPath(), '/api/');
+                    $path = (string)$request->getUri()->getPath();
+                    // API routes are stateless JSON; webhook routes are signed by the
+                    // provider (Meta, Mailgun, ...) which doesn't speak our CSRF token.
+                    return str_contains($path, '/api/') || str_contains($path, '/webhooks/');
                 })
             )
 
@@ -191,6 +194,54 @@ class Application extends BaseApplication implements
     {
         // Allow your Tables to be dependency injected
         //$container->delegate(new \Cake\ORM\Locator\TableContainer());
+
+        // ---------- Messaging core ----------
+        $container->addShared(\App\Service\AgentLogService::class);
+        $container->addShared(\App\Service\ChatSessionService::class);
+        $container->addShared(\App\Integration\Llm\LlmClientFactory::class);
+        $container->addShared(\App\Service\LlmService::class)
+            ->addArgument(\App\Integration\Llm\LlmClientFactory::class)
+            ->addArgument(\App\Service\AgentLogService::class);
+
+        $container->addShared(\App\Messaging\Service\MessageDispatcher::class);
+
+        // The default handler is LlmHandler — every agent with an LLM provider
+        // configured gets WhatsApp / email / future channels for free.
+        $container->addShared(\App\Messaging\Service\LlmHandler::class)
+            ->addArgument(\App\Service\LlmService::class)
+            ->addArgument(\App\Service\ChatSessionService::class)
+            ->addArgument(\App\Messaging\Service\MessageDispatcher::class)
+            ->addArgument(\App\Service\AgentLogService::class);
+
+        $container->addShared(\App\Messaging\Service\MessageHandlerRegistry::class)
+            ->addArgument(\App\Messaging\Service\LlmHandler::class);
+
+        // ---------- WhatsApp channel ----------
+        $container->addShared(\App\Channels\WhatsApp\WhatsAppClientInterface::class, \App\Channels\WhatsApp\WhatsAppClient::class);
+        $container->addShared(\App\Channels\WhatsApp\Service\WhatsAppConfigService::class);
+        $container->addShared(\App\Channels\WhatsApp\Service\WhatsAppOnboardingService::class)
+            ->addArgument(\App\Channels\WhatsApp\WhatsAppClientInterface::class)
+            ->addArgument(\App\Channels\WhatsApp\Service\WhatsAppConfigService::class);
+        $container->addShared(\App\Channels\WhatsApp\WhatsAppTransport::class)
+            ->addArgument(\App\Channels\WhatsApp\WhatsAppClientInterface::class)
+            ->addArgument(\App\Channels\WhatsApp\Service\WhatsAppConfigService::class)
+            ->addArgument(\App\Channels\WhatsApp\Service\WhatsAppOnboardingService::class);
+
+        // ChannelRegistry is constructed eagerly so we can register transports here;
+        // the container then hands the same instance to anyone who asks for it.
+        $registry = new \App\Messaging\Service\ChannelRegistry();
+        $container->addShared(\App\Messaging\Service\ChannelRegistry::class, $registry);
+        $registry->register($container->get(\App\Channels\WhatsApp\WhatsAppTransport::class));
+
+        // ---------- Queue jobs ----------
+        $container->add(\App\Messaging\Job\ProcessInboundMessageJob::class)
+            ->addArgument(\App\Messaging\Service\ChannelRegistry::class)
+            ->addArgument(\App\Messaging\Service\MessageHandlerRegistry::class)
+            ->addArgument(\App\Messaging\Service\MessageDispatcher::class)
+            ->addArgument(\App\Service\AgentLogService::class);
+        $container->add(\App\Messaging\Job\SendMessageJob::class)
+            ->addArgument(\App\Messaging\Service\ChannelRegistry::class)
+            ->addArgument(\App\Service\AgentLogService::class);
     }
 
     /**

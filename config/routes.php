@@ -113,6 +113,12 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/chat/view/{id}', ['controller' => 'Chat', 'action' => 'view'], ['_name' => 'api.v1.chat.view', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/chat/delete/{id}', ['controller' => 'Chat', 'action' => 'delete'], ['_name' => 'api.v1.chat.delete', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/chat/message/{id}', ['controller' => 'Chat', 'action' => 'message'], ['_name' => 'api.v1.chat.message', 'id' => '\d+', 'pass' => ['id']]);
+        // Human handoff endpoints — same controller, channel-agnostic
+        $builder->connect('/chat/escalate/{id}', ['controller' => 'Chat', 'action' => 'escalate'], ['_name' => 'api.v1.chat.escalate', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/assign/{id}', ['controller' => 'Chat', 'action' => 'assign'], ['_name' => 'api.v1.chat.assign', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/handoff-back/{id}', ['controller' => 'Chat', 'action' => 'handoffBack'], ['_name' => 'api.v1.chat.handoff_back', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/human-reply/{id}', ['controller' => 'Chat', 'action' => 'humanReply'], ['_name' => 'api.v1.chat.human_reply', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/inbox', ['controller' => 'Chat', 'action' => 'inbox'], ['_name' => 'api.v1.chat.inbox']);
 
         // GitHub Integrations
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index'], ['_name' => 'api.v1.github_integrations.index']);
@@ -120,6 +126,23 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/github-integrations/view/{id}', ['controller' => 'GithubIntegrations', 'action' => 'view'], ['_name' => 'api.v1.github_integrations.view', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/github-integrations/update/{id}', ['controller' => 'GithubIntegrations', 'action' => 'update'], ['_name' => 'api.v1.github_integrations.update', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/github-integrations/delete/{id}', ['controller' => 'GithubIntegrations', 'action' => 'delete'], ['_name' => 'api.v1.github_integrations.delete', 'id' => '\d+', 'pass' => ['id']]);
+    });
+
+    /*
+     * Webhook endpoints — third-party providers (Meta, Mailgun, ...) post here.
+     * No authentication, no CSRF. The signature header inside each request is the auth.
+     */
+    $routes->scope('/webhooks', function (RouteBuilder $builder): void {
+        $builder->connect(
+            '/whatsapp',
+            ['controller' => 'Webhooks/WhatsApp', 'action' => 'verify'],
+            ['_method' => 'GET', '_name' => 'webhooks.whatsapp.verify'],
+        );
+        $builder->connect(
+            '/whatsapp',
+            ['controller' => 'Webhooks/WhatsApp', 'action' => 'receive'],
+            ['_method' => 'POST', '_name' => 'webhooks.whatsapp.receive'],
+        );
     });
 
     /*

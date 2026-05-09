@@ -490,4 +490,24 @@ return [
         'authToken' => env('TWILIO_AUTH_TOKEN', ''),
         'fromNumber' => env('TWILIO_FROM_NUMBER', ''),
     ],
+
+    /*
+     * Per-channel messaging configuration.
+     *
+     * Per-agent secrets (access tokens, app secrets, phone_number_ids, email
+     * mailbox creds) live in agent_contexts and are read via each channel's
+     * *ConfigService. The values here are global defaults that are not
+     * agent-specific (Meta API base URL, verify-token shared by the App's
+     * webhook URL, OTP timing, etc.).
+     */
+    'Channels' => [
+        'whatsapp' => [
+            'apiUrl' => env('WHATSAPP_API_URL', 'https://graph.facebook.com/v20.0'),
+            'verifyToken' => env('WHATSAPP_VERIFY_TOKEN', ''),
+            'otpTtl' => (int)env('WHATSAPP_OTP_TTL', 600),
+            'otpLength' => (int)env('WHATSAPP_OTP_LENGTH', 6),
+            'maxOtpAttempts' => (int)env('WHATSAPP_OTP_MAX_ATTEMPTS', 5),
+            'windowHours' => (int)env('WHATSAPP_WINDOW_HOURS', 24),
+        ],
+    ],
 ];
