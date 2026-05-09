@@ -100,6 +100,34 @@ class SlackTransport implements ChannelTransportInterface
         return $this->onboardingService->handle($envelope, $agent);
     }
 
+    public function supportsOutboundAudio(): bool
+    {
+        // files.uploadV2 is a multi-step flow (request upload URL, PUT bytes,
+        // complete upload, share). Out of scope for v1; the dispatcher will
+        // automatically fall back to a text reply when this returns false.
+        return false;
+    }
+
+    public function sendAudio(ChatSession $session, string $audioBytes, string $mime): SendResult
+    {
+        throw new SlackException('Outbound audio is not yet supported on Slack — set users.preferred_reply_mode to text or auto');
+    }
+
+    public function fetchMedia(ChatMessage $message): array
+    {
+        $sessions = TableRegistry::getTableLocator()->get('ChatSessions');
+        $session = $sessions->find()->select(['agent_id'])->where(['id' => $message->chat_session_id])->firstOrFail();
+        $config = $this->configService->findConfigByAgentId((int)$session->agent_id);
+        if ($config === null) {
+            throw new SlackException("Slack config missing for session {$message->chat_session_id}");
+        }
+        $url = (string)($message->media_url ?? '');
+        if ($url === '') {
+            throw new SlackException("Inbound message {$message->id} has no media_url");
+        }
+        return $this->client->downloadFile($config->botToken, $url);
+    }
+
     public function parseInbound(InboundEvent $event): array
     {
         /** @var array<string, mixed>|null $payload */
@@ -143,6 +171,22 @@ class SlackTransport implements ChannelTransportInterface
             return [];
         }
 
+        // Detect attached audio file. Slack delivers files in `event.files`
+        // (the deprecated 'file' singular is also handled). When the first
+        // file is audio we surface the message as content_type='audio' so
+        // ProcessInboundMessageJob defers it to TranscribeAudioJob.
+        $contentType = ChatMessage::CONTENT_TEXT;
+        $mediaUrl = null;
+        $mediaMime = null;
+        $audioFile = $this->firstAudioFile($event);
+        if ($audioFile !== null) {
+            $contentType = ChatMessage::CONTENT_AUDIO;
+            // url_private_download is what Slack recommends for programmatic
+            // downloads (sets Content-Disposition: attachment).
+            $mediaUrl = (string)($audioFile['url_private_download'] ?? $audioFile['url_private'] ?? '');
+            $mediaMime = (string)($audioFile['mimetype'] ?? '');
+        }
+
         // Compose external_message_id with workspace + channel + ts so two
         // workspaces using identical ts values cannot collide.
         $externalId = "{$teamId}:{$channelId}:{$ts}";
@@ -153,11 +197,11 @@ class SlackTransport implements ChannelTransportInterface
             externalAccountId: $appId,
             externalIdentifier: $slackUserId,
             externalMessageId: $externalId,
-            contentType: ChatMessage::CONTENT_TEXT,
+            contentType: $contentType,
             body: $text,
             externalThreadId: is_string($threadTs) ? $threadTs : $ts,
-            mediaUrl: null,
-            mediaMimeType: null,
+            mediaUrl: $mediaUrl,
+            mediaMimeType: $mediaMime,
             statusUpdate: null,
             rawPayload: array_merge($event, [
                 'team' => $teamId,
@@ -165,6 +209,35 @@ class SlackTransport implements ChannelTransportInterface
                 'event_type' => $eventType,
             ]),
         )];
+    }
+
+    /**
+     * Returns the first audio file in the event's files[] (or singular file),
+     * or null when the event has none.
+     *
+     * @param array<string, mixed> $event
+     * @return array<string, mixed>|null
+     */
+    private function firstAudioFile(array $event): ?array
+    {
+        $files = $event['files'] ?? null;
+        if (!is_array($files) && isset($event['file']) && is_array($event['file'])) {
+            $files = [$event['file']];
+        }
+        if (!is_array($files)) {
+            return null;
+        }
+        foreach ($files as $file) {
+            if (!is_array($file)) {
+                continue;
+            }
+            $mime = strtolower((string)($file['mimetype'] ?? ''));
+            $type = strtolower((string)($file['filetype'] ?? ''));
+            if (str_starts_with($mime, 'audio/') || in_array($type, ['m4a', 'mp3', 'wav', 'ogg', 'webm', 'flac', 'aac', 'amr'], true)) {
+                return $file;
+            }
+        }
+        return null;
     }
 
     /**

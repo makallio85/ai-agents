@@ -103,6 +103,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/users/view/{id}', ['controller' => 'Users', 'action' => 'view'], ['_name' => 'api.v1.users.view', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/users/approve/{id}', ['controller' => 'Users', 'action' => 'approve'], ['_method' => 'POST', '_name' => 'api.v1.users.approve', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/users/reject/{id}', ['controller' => 'Users', 'action' => 'reject'], ['_method' => 'POST', '_name' => 'api.v1.users.reject', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/users/reply-mode/{id}', ['controller' => 'Users', 'action' => 'setReplyMode'], ['_method' => 'POST', '_name' => 'api.v1.users.set_reply_mode', 'id' => '\d+', 'pass' => ['id']]);
 
         // Conversation CRUD
         $builder->connect('/conversations', ['controller' => 'Conversations', 'action' => 'index'], ['_name' => 'api.v1.conversations.index']);

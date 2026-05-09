@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Messaging\Job;
 
+use App\Integration\Speech\SpeechException;
+use App\Integration\Speech\TextToSpeechInterface;
 use App\Messaging\Dto\OutboundMessage;
 use App\Messaging\Exception\OutsideMessagingWindowException;
 use App\Messaging\Service\ChannelRegistry;
@@ -32,6 +34,7 @@ class SendMessageJob implements JobInterface
 
     public function __construct(
         private readonly ChannelRegistry $channels,
+        private readonly TextToSpeechInterface $tts,
         private readonly AgentLogService $logService,
     ) {
     }
@@ -40,6 +43,7 @@ class SendMessageJob implements JobInterface
     {
         $messageId = (int)$message->getArgument('message_id', 0);
         $proactive = (bool)$message->getArgument('proactive', false);
+        $synthesiseAudio = (bool)$message->getArgument('synthesise_audio', false);
         if ($messageId === 0) {
             return Processor::REJECT;
         }
@@ -74,12 +78,29 @@ class SendMessageJob implements JobInterface
 
         $transport = $this->channels->get($session->channel);
         $metadata = $row->metadata ? (array)json_decode((string)$row->metadata, true) : [];
-        $payload = new OutboundMessage($row->content, $row->content_type ?? OutboundMessage::CONTENT_TEXT, $metadata);
 
         try {
-            $result = $proactive
-                ? $transport->sendProactive($session, $payload)
-                : $transport->send($session, $payload);
+            // Audio path: synthesise via TTS and dispatch through the transport's
+            // sendAudio. Falls back to text on any failure so the user is not
+            // left silent — the row gets a note in metadata recording the fallback.
+            if ($synthesiseAudio && $transport->supportsOutboundAudio()) {
+                $result = $this->sendAsAudio($transport, $session, $row, $messages);
+            } else {
+                if ($synthesiseAudio && !$transport->supportsOutboundAudio()) {
+                    $this->logService->info(
+                        $session->agent_id,
+                        'send-' . $row->id,
+                        'Channel does not support outbound audio; falling back to text reply',
+                        ['channel' => $session->channel],
+                    );
+                    $row->content_type = ChatMessage::CONTENT_TEXT;
+                    $messages->save($row);
+                }
+                $payload = new OutboundMessage($row->content, $row->content_type ?? OutboundMessage::CONTENT_TEXT, $metadata);
+                $result = $proactive
+                    ? $transport->sendProactive($session, $payload)
+                    : $transport->send($session, $payload);
+            }
         } catch (OutsideMessagingWindowException $e) {
             $row->status = ChatMessage::STATUS_FAILED;
             $row->error_code = 'window_closed';
@@ -127,5 +148,47 @@ class SendMessageJob implements JobInterface
         );
 
         return Processor::ACK;
+    }
+
+    /**
+     * Synthesises the row's text via TTS, asks the transport to deliver it
+     * as audio, and records the synthesis details on the row's metadata.
+     *
+     * @param \App\Messaging\Contract\ChannelTransportInterface $transport
+     * @param \App\Model\Entity\ChatSession $session
+     * @param ChatMessage $row
+     * @param \Cake\ORM\Table $messages
+     * @return \App\Messaging\Dto\SendResult
+     */
+    private function sendAsAudio(
+        $transport,
+        $session,
+        ChatMessage $row,
+        $messages,
+    ) {
+        try {
+            $synth = $this->tts->synthesise($row->content);
+        } catch (SpeechException $e) {
+            $this->logService->error(
+                $session->agent_id,
+                'send-' . $row->id,
+                'TTS failed; falling back to text reply',
+                $e->getMessage(),
+                ['channel' => $session->channel],
+            );
+            // Fall back: deliver the text we already have via the regular send().
+            $row->content_type = ChatMessage::CONTENT_TEXT;
+            $messages->save($row);
+            $payload = new OutboundMessage($row->content, ChatMessage::CONTENT_TEXT);
+            return $transport->send($session, $payload);
+        }
+
+        $existingMeta = $row->metadata ? (array)json_decode((string)$row->metadata, true) : [];
+        $existingMeta['tts'] = ['provider' => 'google', 'mime' => $synth->mime];
+        $row->metadata = json_encode($existingMeta);
+        $row->media_mime_type = $synth->mime;
+        $messages->save($row);
+
+        return $transport->sendAudio($session, $synth->audio, $synth->mime);
     }
 }

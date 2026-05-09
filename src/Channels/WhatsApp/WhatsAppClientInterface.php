@@ -38,4 +38,28 @@ interface WhatsAppClientInterface
 
     /** Mark an inbound message as read so the user sees the blue ticks. */
     public function markRead(string $phoneNumberId, string $accessToken, string $messageId): void;
+
+    /**
+     * Two-step media download: first GET /{media_id} to obtain a short-lived
+     * URL, then GET that URL with the bearer token. Returns the raw bytes
+     * and the provider-reported MIME type.
+     *
+     * @return array{content: string, mime: string}
+     */
+    public function downloadMedia(string $accessToken, string $mediaId): array;
+
+    /**
+     * Uploads media bytes to Meta and returns the media_id. Used before
+     * sending audio / image / document messages — Meta requires the bytes
+     * be uploaded first then referenced by id in the outbound message.
+     */
+    public function uploadMedia(string $phoneNumberId, string $accessToken, string $bytes, string $mime): string;
+
+    /**
+     * Sends an audio message referencing a media_id obtained from
+     * uploadMedia(). Useful for TTS-generated agent replies on WhatsApp.
+     *
+     * @return array<string, mixed>
+     */
+    public function sendAudio(string $phoneNumberId, string $accessToken, string $toWaId, string $mediaId): array;
 }

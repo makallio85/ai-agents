@@ -59,6 +59,39 @@ class SlackClient implements SlackClientInterface
         ];
     }
 
+    public function downloadFile(string $botToken, string $url): array
+    {
+        $options = [
+            'http' => [
+                'method' => 'GET',
+                'header' => 'Authorization: Bearer ' . $botToken . "\r\n"
+                    . 'User-Agent: AI-Agents-Platform/1.0',
+                'ignore_errors' => true,
+                'follow_location' => 1,
+            ],
+        ];
+        $bytes = @file_get_contents($url, false, stream_context_create($options));
+        if ($bytes === false) {
+            throw new SlackException("Slack file download failed: {$url}");
+        }
+        $statusCode = 200;
+        $mime = 'application/octet-stream';
+        if (!empty($http_response_header)) {
+            preg_match('/HTTP\/\S+\s+(\d+)/', $http_response_header[0], $m);
+            $statusCode = isset($m[1]) ? (int)$m[1] : 200;
+            foreach ($http_response_header as $header) {
+                if (stripos($header, 'content-type:') === 0) {
+                    $mime = trim(substr($header, strlen('content-type:')));
+                    break;
+                }
+            }
+        }
+        if ($statusCode >= 400) {
+            throw new SlackException("Slack file download HTTP error {$statusCode}", $statusCode);
+        }
+        return ['content' => $bytes, 'mime' => $mime];
+    }
+
     /**
      * @param array<string, mixed>|null $body
      * @return array<string, mixed>

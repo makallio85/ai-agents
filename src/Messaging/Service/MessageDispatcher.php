@@ -177,6 +177,51 @@ class MessageDispatcher
     }
 
     /**
+     * Decides whether the user wants this reply as text or audio.
+     *
+     * Reads users.preferred_reply_mode:
+     *   - 'audio' : reply as audio when the channel supports outbound audio,
+     *               otherwise fall back to text
+     *   - 'text'  : always reply as text
+     *   - 'auto'  : mirror the user's most recent inbound — if they sent
+     *               audio, reply audio (when supported); otherwise text
+     *
+     * System messages (role='system') stay as text regardless because they
+     * are platform notices (OTP prompts, error apologies) where TTS
+     * latency would slow critical UX paths.
+     */
+    public function shouldReplyAsAudio(ChatSession $session, string $role): bool
+    {
+        if ($role === ChatMessage::ROLE_SYSTEM) {
+            return false;
+        }
+        $sessions = TableRegistry::getTableLocator()->get('ChatSessions');
+        /** @var ChatSession|null $loaded */
+        $loaded = $sessions->find()
+            ->contain(['Users'])
+            ->where(['ChatSessions.id' => $session->id])
+            ->first();
+        $preferred = $loaded?->user?->preferred_reply_mode ?? 'auto';
+
+        if ($preferred === 'text') {
+            return false;
+        }
+        if ($preferred === 'audio') {
+            return true;
+        }
+        // 'auto' — mirror the latest inbound's content_type.
+        $messages = TableRegistry::getTableLocator()->get('ChatMessages');
+        $latest = $messages->find()
+            ->where([
+                'chat_session_id' => $session->id,
+                'direction' => ChatMessage::DIRECTION_INBOUND,
+            ])
+            ->orderByDesc('created')
+            ->first();
+        return ($latest?->content_type ?? null) === ChatMessage::CONTENT_AUDIO;
+    }
+
+    /**
      * Persists a chat_messages row in queued state and enqueues SendMessageJob
      * for non-web channels. For 'web' (the existing SSE flow) the row is
      * persisted and we leave delivery to the existing controller.
@@ -189,6 +234,17 @@ class MessageDispatcher
         bool $proactive,
     ): ChatMessage {
         $messages = TableRegistry::getTableLocator()->get('ChatMessages');
+        // Audio routing is decided at the dispatch layer, not the send-job
+        // layer, so the chat_messages row is correctly tagged from the
+        // start (and the chat-history UI shows the audio bubble even
+        // before the send-job runs).
+        $contentType = $message->contentType;
+        $synthesiseAudio = false;
+        if ($contentType === OutboundMessage::CONTENT_TEXT && $this->shouldReplyAsAudio($session, $role)) {
+            $contentType = ChatMessage::CONTENT_AUDIO;
+            $synthesiseAudio = true;
+        }
+
         $entity = $messages->newEntity([
             'chat_session_id' => $session->id,
             'role' => $role,
@@ -196,7 +252,7 @@ class MessageDispatcher
             'direction' => ChatMessage::DIRECTION_OUTBOUND,
             'sender_user_id' => $senderUserId,
             'content' => $message->body,
-            'content_type' => $message->contentType,
+            'content_type' => $contentType,
             'status' => ChatMessage::STATUS_QUEUED,
             'metadata' => $message->metadata !== [] ? json_encode($message->metadata) : null,
         ]);
@@ -220,6 +276,7 @@ class MessageDispatcher
         QueueManager::push(SendMessageJob::class, [
             'message_id' => $entity->id,
             'proactive' => $proactive,
+            'synthesise_audio' => $synthesiseAudio,
         ], ['queue' => $this->queueName ?? 'default']);
 
         return $entity;

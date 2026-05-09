@@ -88,4 +88,30 @@ interface ChannelTransportInterface
      * is true.
      */
     public function handleUnverifiedSender(InboundEnvelope $envelope, ?Agent $agent): ?User;
+
+    /**
+     * Download the binary media referenced by an inbound chat_messages row
+     * (audio voice notes, images, documents, ...). Throws when the channel
+     * does not support media or the download fails — only called for
+     * messages where content_type is NOT 'text'.
+     *
+     * @return array{content: string, mime: string}
+     */
+    public function fetchMedia(\App\Model\Entity\ChatMessage $message): array;
+
+    /**
+     * True when this transport can deliver outbound audio (TTS-generated
+     * voice notes). False channels fall back to text replies even when the
+     * user's preferred_reply_mode is 'audio'. Web is text-only; WhatsApp
+     * supports outbound audio; Slack support is gated by files.upload
+     * complexity (deferred).
+     */
+    public function supportsOutboundAudio(): bool;
+
+    /**
+     * Sends a synthesised audio reply on this channel. Only called when
+     * supportsOutboundAudio() returns true. The transport handles upload,
+     * channel addressing, and threading.
+     */
+    public function sendAudio(\App\Model\Entity\ChatSession $session, string $audioBytes, string $mime): \App\Messaging\Dto\SendResult;
 }

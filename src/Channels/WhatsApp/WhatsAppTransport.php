@@ -122,6 +122,45 @@ class WhatsAppTransport implements ChannelTransportInterface
         return $this->onboardingService->handle($envelope, $agent);
     }
 
+    public function supportsOutboundAudio(): bool
+    {
+        return true;
+    }
+
+    public function sendAudio(ChatSession $session, string $audioBytes, string $mime): SendResult
+    {
+        $config = $this->configService->findConfigByAgentId($session->agent_id);
+        if ($config === null || !$config->enabled) {
+            throw new WhatsAppException("WhatsApp is not configured / enabled for agent {$session->agent_id}");
+        }
+        if (!$this->isWithinWindow($session)) {
+            throw new OutsideMessagingWindowException(
+                "Session {$session->id} is outside the WhatsApp 24h Service window; cannot send audio."
+            );
+        }
+
+        $mediaId = $this->client->uploadMedia($config->phoneNumberId, $config->accessToken, $audioBytes, $mime);
+        $waId = $this->resolveRecipient($session);
+        $response = $this->client->sendAudio($config->phoneNumberId, $config->accessToken, $waId, $mediaId);
+        return $this->buildResult($response);
+    }
+
+    public function fetchMedia(ChatMessage $message): array
+    {
+        $config = $this->configService->findConfigByAgentId(
+            (int)TableRegistry::getTableLocator()->get('ChatSessions')
+                ->find()->select(['agent_id'])->where(['id' => $message->chat_session_id])->firstOrFail()->agent_id
+        );
+        if ($config === null) {
+            throw new WhatsAppException("WhatsApp config missing for session {$message->chat_session_id}");
+        }
+        $mediaId = (string)($message->media_url ?? '');
+        if ($mediaId === '') {
+            throw new WhatsAppException("Inbound message {$message->id} has no media_url");
+        }
+        return $this->client->downloadMedia($config->accessToken, $mediaId);
+    }
+
     public function parseInbound(InboundEvent $event): array
     {
         /** @var array<string, mixed>|null $payload */

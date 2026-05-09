@@ -128,6 +128,36 @@ class SlackTransportParseTest extends TestCase
         $this->assertCount(0, $this->transport->parseInbound($event));
     }
 
+    public function testParsesAudioFileShare(): void
+    {
+        $event = $this->event([
+            'type' => 'event_callback',
+            'api_app_id' => 'A0APPID',
+            'team_id' => 'T0TEAM',
+            'event' => [
+                'type' => 'message',
+                'channel' => 'C0CH',
+                'user' => 'U0USER',
+                'text' => '',
+                'ts' => '1700000007.000900',
+                'files' => [[
+                    'id' => 'F0AUDIO',
+                    'mimetype' => 'audio/m4a',
+                    'filetype' => 'm4a',
+                    'url_private_download' => 'https://files.slack.com/F0AUDIO/download',
+                    'url_private' => 'https://files.slack.com/F0AUDIO',
+                ]],
+            ],
+        ]);
+
+        $envelopes = $this->transport->parseInbound($event);
+        $this->assertCount(1, $envelopes);
+        $env = $envelopes[0];
+        $this->assertSame(\App\Model\Entity\ChatMessage::CONTENT_AUDIO, $env->contentType);
+        $this->assertSame('https://files.slack.com/F0AUDIO/download', $env->mediaUrl);
+        $this->assertSame('audio/m4a', $env->mediaMimeType);
+    }
+
     public function testIgnoresMissingApiAppId(): void
     {
         $event = $this->event([

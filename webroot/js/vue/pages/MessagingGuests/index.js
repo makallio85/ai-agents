@@ -66,6 +66,19 @@
                 }
             }
 
+            async function setReplyMode(user, mode) {
+                if (acting.value[user.id]) { return; }
+                acting.value[user.id] = true;
+                try {
+                    var data = await Api.users.setReplyMode(user.id, mode);
+                    Object.assign(user, data.data || {});
+                } catch (err) {
+                    loadError.value = err.message || 'Failed to update reply mode';
+                } finally {
+                    acting.value[user.id] = false;
+                }
+            }
+
             async function reject(user) {
                 if (acting.value[user.id]) { return; }
                 if (!confirm('Reject ' + identifierFor(user) + '? Their messages will be silently buffered until they are approved.')) {
@@ -157,6 +170,7 @@
                 setChannelFilter: setChannelFilter,
                 approve: approve,
                 reject: reject,
+                setReplyMode: setReplyMode,
                 channelsFor: channelsFor,
                 channelLabel: channelLabel,
                 channelIcon: channelIcon,

@@ -203,6 +203,14 @@ class Application extends BaseApplication implements
             ->addArgument(\App\Integration\Llm\LlmClientFactory::class)
             ->addArgument(\App\Service\AgentLogService::class);
 
+        // ---------- Speech (Google STT + TTS) ----------
+        $container->addShared(\App\Integration\Speech\SpeechToTextInterface::class, function (): \App\Integration\Speech\SpeechToTextInterface {
+            return \App\Integration\Speech\GoogleSpeechToTextClient::fromConfigure();
+        });
+        $container->addShared(\App\Integration\Speech\TextToSpeechInterface::class, function (): \App\Integration\Speech\TextToSpeechInterface {
+            return \App\Integration\Speech\GoogleTextToSpeechClient::fromConfigure();
+        });
+
         $container->addShared(\App\Messaging\Service\MessageDispatcher::class);
 
         // The default handler is LlmHandler — every agent with an LLM provider
@@ -215,6 +223,11 @@ class Application extends BaseApplication implements
 
         $container->addShared(\App\Messaging\Service\MessageHandlerRegistry::class)
             ->addArgument(\App\Messaging\Service\LlmHandler::class);
+
+        $container->addShared(\App\Messaging\Service\InboundDispatchService::class)
+            ->addArgument(\App\Messaging\Service\MessageHandlerRegistry::class)
+            ->addArgument(\App\Messaging\Service\MessageDispatcher::class)
+            ->addArgument(\App\Service\AgentLogService::class);
 
         // ---------- WhatsApp channel ----------
         $container->addShared(\App\Channels\WhatsApp\WhatsAppClientInterface::class, \App\Channels\WhatsApp\WhatsAppClient::class);
@@ -248,11 +261,17 @@ class Application extends BaseApplication implements
         // ---------- Queue jobs ----------
         $container->add(\App\Messaging\Job\ProcessInboundMessageJob::class)
             ->addArgument(\App\Messaging\Service\ChannelRegistry::class)
-            ->addArgument(\App\Messaging\Service\MessageHandlerRegistry::class)
-            ->addArgument(\App\Messaging\Service\MessageDispatcher::class)
+            ->addArgument(\App\Messaging\Service\InboundDispatchService::class)
             ->addArgument(\App\Service\AgentLogService::class);
         $container->add(\App\Messaging\Job\SendMessageJob::class)
             ->addArgument(\App\Messaging\Service\ChannelRegistry::class)
+            ->addArgument(\App\Integration\Speech\TextToSpeechInterface::class)
+            ->addArgument(\App\Service\AgentLogService::class);
+        $container->add(\App\Messaging\Job\TranscribeAudioJob::class)
+            ->addArgument(\App\Messaging\Service\ChannelRegistry::class)
+            ->addArgument(\App\Integration\Speech\SpeechToTextInterface::class)
+            ->addArgument(\App\Messaging\Service\InboundDispatchService::class)
+            ->addArgument(\App\Messaging\Service\MessageDispatcher::class)
             ->addArgument(\App\Service\AgentLogService::class);
     }
 

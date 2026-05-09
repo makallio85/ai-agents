@@ -35,4 +35,13 @@ interface SlackClientInterface
      * @return array{id: string, name: string, real_name: ?string, email: ?string, team_id: ?string}
      */
     public function getUserInfo(string $botToken, string $slackUserId): array;
+
+    /**
+     * Downloads a Slack file using the bot token. The URL must come from
+     * the Events API payload (url_private_download or url_private) — Slack
+     * requires Bearer auth on these private URLs.
+     *
+     * @return array{content: string, mime: string}
+     */
+    public function downloadFile(string $botToken, string $url): array;
 }

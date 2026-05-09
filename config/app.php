@@ -519,4 +519,22 @@ return [
             // NOT here. This block holds only global/transport-level settings.
         ],
     ],
+
+    /*
+     * Speech-to-Text and Text-to-Speech (Google Cloud).
+     *
+     * One API key serves both endpoints. v1 uses API-key auth for simplicity;
+     * production deployments may want to swap to a service account JWT,
+     * which is a follow-up.
+     */
+    'Speech' => [
+        'google' => [
+            'apiKey' => env('GOOGLE_SPEECH_API_KEY', ''),
+            'apiUrl' => env('GOOGLE_SPEECH_API_URL', 'https://speech.googleapis.com/v1'),
+            'ttsApiUrl' => env('GOOGLE_TTS_API_URL', 'https://texttospeech.googleapis.com/v1'),
+            'defaultLanguageCode' => env('GOOGLE_SPEECH_LANGUAGE', 'en-US'),
+            'model' => env('GOOGLE_SPEECH_MODEL', 'latest_short'),
+            'defaultVoice' => env('GOOGLE_TTS_VOICE', 'en-US-Standard-A'),
+        ],
+    ],
 ];

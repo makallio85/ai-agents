@@ -133,6 +133,7 @@ var Api = (function () {
         view: function (id) { return _coreRequest('GET', 'users/view/' + id); },
         approve: function (id, body) { return _coreRequest('POST', 'users/approve/' + id, body || {}); },
         reject: function (id) { return _coreRequest('POST', 'users/reject/' + id); },
+        setReplyMode: function (id, mode) { return _coreRequest('POST', 'users/reply-mode/' + id, { mode: mode }); },
     };
 
     var conversations = {

@@ -58,6 +58,7 @@ $this->assign('title', 'Messaging Guests');
                             <th>Identifier</th>
                             <th>Username</th>
                             <th>State</th>
+                            <th>Reply mode</th>
                             <th>First seen</th>
                             <th>Approved by</th>
                             <th class="text-end pe-3">Actions</th>
@@ -75,6 +76,13 @@ $this->assign('title', 'Messaging Guests');
                             <td class="small text-muted">{{ u.username }}</td>
                             <td>
                                 <span class="badge" :class="stateBadge(u.approval_state)">{{ u.approval_state }}</span>
+                            </td>
+                            <td>
+                                <select class="form-select form-select-sm" style="width:7rem;" :value="u.preferred_reply_mode || 'auto'" @change="setReplyMode(u, $event.target.value)" :disabled="acting[u.id]">
+                                    <option value="auto">Auto</option>
+                                    <option value="text">Text</option>
+                                    <option value="audio">Audio</option>
+                                </select>
                             </td>
                             <td class="small text-muted">{{ formatDate(u.created) }}</td>
                             <td class="small text-muted">{{ u.approved_by_user_id ? '#' + u.approved_by_user_id : '—' }}</td>

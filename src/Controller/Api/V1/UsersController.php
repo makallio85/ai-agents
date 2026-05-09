@@ -106,6 +106,45 @@ class UsersController extends AppController
     }
 
     /**
+     * POST /api/v1/users/reply-mode/:id
+     * Body: { mode: 'auto'|'text'|'audio' }
+     *
+     * Sets the user's preferred outbound mode. Used by the admin UI to
+     * toggle whether agents reply to a guest as text or as audio (TTS).
+     * Self-service is allowed: any authenticated user can update their
+     * own preference; updating someone else's requires users:approve.
+     */
+    public function setReplyMode(int $id): void
+    {
+        $caller = $this->getCurrentUser();
+        if ($caller === null) {
+            $this->error('Not authenticated', [], 401);
+            return;
+        }
+        if ($caller->id !== $id) {
+            $this->requirePermission('users', 'approve');
+        }
+        $mode = (string)$this->request->getData('mode', '');
+        if (!in_array($mode, [User::REPLY_AUTO, User::REPLY_TEXT, User::REPLY_AUDIO], true)) {
+            $this->error('mode must be one of: auto, text, audio', [], 422);
+            return;
+        }
+        $users = $this->fetchTable('Users');
+        /** @var User|null $user */
+        $user = $users->find()->where(['Users.id' => $id])->first();
+        if ($user === null) {
+            $this->error('User not found', [], 404);
+            return;
+        }
+        $user->preferred_reply_mode = $mode;
+        if (!$users->save($user)) {
+            $this->error('Failed to update preference: ' . json_encode($user->getErrors()), [], 422);
+            return;
+        }
+        $this->success($user);
+    }
+
+    /**
      * POST /api/v1/users/reject/:id
      *
      * Marks the user rejected. They stay in the database (so future inbound
