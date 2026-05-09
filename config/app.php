@@ -490,4 +490,51 @@ return [
         'authToken' => env('TWILIO_AUTH_TOKEN', ''),
         'fromNumber' => env('TWILIO_FROM_NUMBER', ''),
     ],
+
+    /*
+     * Per-channel messaging configuration.
+     *
+     * Per-agent secrets (access tokens, app secrets, phone_number_ids, email
+     * mailbox creds) live in agent_contexts and are read via each channel's
+     * *ConfigService. The values here are global defaults that are not
+     * agent-specific (Meta API base URL, verify-token shared by the App's
+     * webhook URL, OTP timing, etc.).
+     */
+    'Channels' => [
+        'whatsapp' => [
+            'apiUrl' => env('WHATSAPP_API_URL', 'https://graph.facebook.com/v20.0'),
+            'verifyToken' => env('WHATSAPP_VERIFY_TOKEN', ''),
+            // App secret is per-Meta-App, not per-agent. All agents on the same
+            // Meta App share this — used to verify webhook signatures.
+            'appSecret' => env('WHATSAPP_APP_SECRET', ''),
+            'otpTtl' => (int)env('WHATSAPP_OTP_TTL', 600),
+            'otpLength' => (int)env('WHATSAPP_OTP_LENGTH', 6),
+            'maxOtpAttempts' => (int)env('WHATSAPP_OTP_MAX_ATTEMPTS', 5),
+            'windowHours' => (int)env('WHATSAPP_WINDOW_HOURS', 24),
+        ],
+        'slack' => [
+            'apiUrl' => env('SLACK_API_URL', 'https://slack.com/api'),
+            // Slack signing secrets are per-Slack-App; one Slack App per agent
+            // means the secret lives in agent_contexts under slack.signing_secret,
+            // NOT here. This block holds only global/transport-level settings.
+        ],
+    ],
+
+    /*
+     * Speech-to-Text and Text-to-Speech (Google Cloud).
+     *
+     * One API key serves both endpoints. v1 uses API-key auth for simplicity;
+     * production deployments may want to swap to a service account JWT,
+     * which is a follow-up.
+     */
+    'Speech' => [
+        'google' => [
+            'apiKey' => env('GOOGLE_SPEECH_API_KEY', ''),
+            'apiUrl' => env('GOOGLE_SPEECH_API_URL', 'https://speech.googleapis.com/v1'),
+            'ttsApiUrl' => env('GOOGLE_TTS_API_URL', 'https://texttospeech.googleapis.com/v1'),
+            'defaultLanguageCode' => env('GOOGLE_SPEECH_LANGUAGE', 'en-US'),
+            'model' => env('GOOGLE_SPEECH_MODEL', 'latest_short'),
+            'defaultVoice' => env('GOOGLE_TTS_VOICE', 'en-US-Standard-A'),
+        ],
+    ],
 ];

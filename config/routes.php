@@ -67,6 +67,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index']);
         $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
         $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index']);
+        $builder->connect('/messaging-guests', ['controller' => 'MessagingGuests', 'action' => 'index']);
 
         $builder->fallbacks();
     });
@@ -90,6 +91,19 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/agents/update/{id}', ['controller' => 'Agents', 'action' => 'update'], ['_name' => 'api.v1.agents.update', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/agents/delete/{id}', ['controller' => 'Agents', 'action' => 'delete'], ['_name' => 'api.v1.agents.delete', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/agents/logs/{id}', ['controller' => 'Agents', 'action' => 'logs'], ['_name' => 'api.v1.agents.logs', 'id' => '\d+', 'pass' => ['id']]);
+        // Per-agent WhatsApp configuration (admin/superuser only via chat:configure)
+        $builder->connect('/agents/whatsapp-config/{id}', ['controller' => 'Agents', 'action' => 'whatsappConfig'], ['_method' => 'GET', '_name' => 'api.v1.agents.whatsapp_config', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/agents/whatsapp-config/{id}', ['controller' => 'Agents', 'action' => 'updateWhatsappConfig'], ['_method' => 'POST', '_name' => 'api.v1.agents.update_whatsapp_config', 'id' => '\d+', 'pass' => ['id']]);
+        // Per-agent Slack configuration (admin/superuser via chat:configure)
+        $builder->connect('/agents/slack-config/{id}', ['controller' => 'Agents', 'action' => 'slackConfig'], ['_method' => 'GET', '_name' => 'api.v1.agents.slack_config', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/agents/slack-config/{id}', ['controller' => 'Agents', 'action' => 'updateSlackConfig'], ['_method' => 'POST', '_name' => 'api.v1.agents.update_slack_config', 'id' => '\d+', 'pass' => ['id']]);
+
+        // Users — approval workflow (and minimal admin listing)
+        $builder->connect('/users', ['controller' => 'Users', 'action' => 'index'], ['_name' => 'api.v1.users.index']);
+        $builder->connect('/users/view/{id}', ['controller' => 'Users', 'action' => 'view'], ['_name' => 'api.v1.users.view', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/users/approve/{id}', ['controller' => 'Users', 'action' => 'approve'], ['_method' => 'POST', '_name' => 'api.v1.users.approve', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/users/reject/{id}', ['controller' => 'Users', 'action' => 'reject'], ['_method' => 'POST', '_name' => 'api.v1.users.reject', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/users/reply-mode/{id}', ['controller' => 'Users', 'action' => 'setReplyMode'], ['_method' => 'POST', '_name' => 'api.v1.users.set_reply_mode', 'id' => '\d+', 'pass' => ['id']]);
 
         // Conversation CRUD
         $builder->connect('/conversations', ['controller' => 'Conversations', 'action' => 'index'], ['_name' => 'api.v1.conversations.index']);
@@ -113,6 +127,12 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/chat/view/{id}', ['controller' => 'Chat', 'action' => 'view'], ['_name' => 'api.v1.chat.view', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/chat/delete/{id}', ['controller' => 'Chat', 'action' => 'delete'], ['_name' => 'api.v1.chat.delete', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/chat/message/{id}', ['controller' => 'Chat', 'action' => 'message'], ['_name' => 'api.v1.chat.message', 'id' => '\d+', 'pass' => ['id']]);
+        // Human handoff endpoints — same controller, channel-agnostic
+        $builder->connect('/chat/escalate/{id}', ['controller' => 'Chat', 'action' => 'escalate'], ['_name' => 'api.v1.chat.escalate', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/assign/{id}', ['controller' => 'Chat', 'action' => 'assign'], ['_name' => 'api.v1.chat.assign', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/handoff-back/{id}', ['controller' => 'Chat', 'action' => 'handoffBack'], ['_name' => 'api.v1.chat.handoff_back', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/human-reply/{id}', ['controller' => 'Chat', 'action' => 'humanReply'], ['_name' => 'api.v1.chat.human_reply', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/chat/inbox', ['controller' => 'Chat', 'action' => 'inbox'], ['_name' => 'api.v1.chat.inbox']);
 
         // GitHub Integrations
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index'], ['_name' => 'api.v1.github_integrations.index']);
@@ -120,6 +140,29 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/github-integrations/view/{id}', ['controller' => 'GithubIntegrations', 'action' => 'view'], ['_name' => 'api.v1.github_integrations.view', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/github-integrations/update/{id}', ['controller' => 'GithubIntegrations', 'action' => 'update'], ['_name' => 'api.v1.github_integrations.update', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/github-integrations/delete/{id}', ['controller' => 'GithubIntegrations', 'action' => 'delete'], ['_name' => 'api.v1.github_integrations.delete', 'id' => '\d+', 'pass' => ['id']]);
+    });
+
+    /*
+     * Webhook endpoints — third-party providers (Meta, Mailgun, ...) post here.
+     * No authentication, no CSRF. The signature header inside each request is the auth.
+     */
+    $routes->scope('/webhooks', function (RouteBuilder $builder): void {
+        $builder->connect(
+            '/whatsapp',
+            ['controller' => 'Webhooks/WhatsApp', 'action' => 'verify'],
+            ['_method' => 'GET', '_name' => 'webhooks.whatsapp.verify'],
+        );
+        $builder->connect(
+            '/whatsapp',
+            ['controller' => 'Webhooks/WhatsApp', 'action' => 'receive'],
+            ['_method' => 'POST', '_name' => 'webhooks.whatsapp.receive'],
+        );
+        // Slack — one endpoint handles url_verification challenge and event_callback.
+        $builder->connect(
+            '/slack',
+            ['controller' => 'Webhooks/Slack', 'action' => 'receive'],
+            ['_method' => 'POST', '_name' => 'webhooks.slack.receive'],
+        );
     });
 
     /*

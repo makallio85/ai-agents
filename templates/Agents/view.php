@@ -179,6 +179,148 @@ $this->assign('title', 'Agent details');
         </div>
     </template>
 
+    <!-- WhatsApp configuration -->
+    <div v-if="agent" class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex align-items-center">
+                    <h6 class="mb-0 fw-semibold"><i class="bi bi-whatsapp text-success me-1"></i> WhatsApp</h6>
+                    <span class="ms-3 small text-muted">One Meta phone number per agent. The Meta App secret is shared across all agents and lives in env (<code>WHATSAPP_APP_SECRET</code>).</span>
+                    <button v-if="!whatsappEditing" class="btn btn-sm btn-outline-primary ms-auto" @click="openWhatsappEdit" :disabled="loadingWhatsapp">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div v-if="loadingWhatsapp" class="text-center py-3 text-muted">
+                        <div class="spinner-border spinner-border-sm"></div>
+                    </div>
+                    <div v-else>
+                        <div v-if="whatsappError" class="alert alert-danger py-2 small mb-3">{{ whatsappError }}</div>
+                        <div v-if="!whatsapp.has_global_app_secret" class="alert alert-warning py-2 small mb-3">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            <strong>WHATSAPP_APP_SECRET</strong> is not set in the environment. Webhook signature verification will fail until it is configured.
+                        </div>
+
+                        <div v-if="!whatsappEditing" class="row g-3 small">
+                            <div class="col-md-4"><div class="text-muted">Phone number ID</div><div class="fw-medium">{{ whatsapp.phone_number_id || '—' }}</div></div>
+                            <div class="col-md-3"><div class="text-muted">Display number</div><div class="fw-medium">{{ whatsapp.display_number || '—' }}</div></div>
+                            <div class="col-md-2"><div class="text-muted">Access token</div><div class="fw-medium">{{ whatsapp.access_token_set ? 'set' : 'not set' }}</div></div>
+                            <div class="col-md-2"><div class="text-muted">Welcome template</div><div class="fw-medium">{{ whatsapp.welcome_template_name || '—' }}</div></div>
+                            <div class="col-md-1"><div class="text-muted">Enabled</div><span class="badge" :class="whatsapp.enabled ? 'bg-success' : 'bg-secondary'">{{ whatsapp.enabled ? 'Yes' : 'No' }}</span></div>
+                        </div>
+
+                        <div v-else class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label small fw-medium">Phone number ID</label>
+                                <input v-model="whatsappForm.phone_number_id" type="text" class="form-control" placeholder="123456789012345" :disabled="savingWhatsapp" />
+                                <div class="form-text small">Meta &rarr; WhatsApp Manager &rarr; Phone Numbers</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-medium">Display number</label>
+                                <input v-model="whatsappForm.display_number" type="text" class="form-control" placeholder="+358401234567" :disabled="savingWhatsapp" />
+                            </div>
+                            <div class="col-md-5">
+                                <label class="form-label small fw-medium">Access token <span class="text-muted">(leave blank to keep existing)</span></label>
+                                <input v-model="whatsappForm.access_token" type="password" class="form-control" :placeholder="whatsapp.access_token_set ? '•••• already set ••••' : 'EAAG...'" :disabled="savingWhatsapp" autocomplete="off" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <label class="form-label small fw-medium">Welcome template name</label>
+                                <input v-model="whatsappForm.welcome_template_name" type="text" class="form-control" placeholder="agent_notice" :disabled="savingWhatsapp" />
+                                <div class="form-text small">Approved Meta template used for proactive sends outside the 24h window.</div>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-center pt-3">
+                                <div class="form-check form-switch">
+                                    <input v-model="whatsappForm.enabled" type="checkbox" class="form-check-input" id="whatsapp-enabled" :disabled="savingWhatsapp" />
+                                    <label class="form-check-label small" for="whatsapp-enabled">Enabled</label>
+                                </div>
+                            </div>
+                            <div class="col-12 d-flex gap-2 pt-2">
+                                <button class="btn btn-sm btn-primary" @click="saveWhatsapp" :disabled="savingWhatsapp">
+                                    <span v-if="savingWhatsapp" class="spinner-border spinner-border-sm me-1"></span>
+                                    Save
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @click="cancelWhatsapp" :disabled="savingWhatsapp">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slack configuration -->
+    <div v-if="agent" class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex align-items-center">
+                    <h6 class="mb-0 fw-semibold"><i class="bi bi-slack text-primary me-1"></i> Slack</h6>
+                    <span class="ms-3 small text-muted">One Slack App per agent. Bot token and signing secret are encrypted at rest.</span>
+                    <button v-if="!slackEditing" class="btn btn-sm btn-outline-primary ms-auto" @click="openSlackEdit" :disabled="loadingSlack">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div v-if="loadingSlack" class="text-center py-3 text-muted">
+                        <div class="spinner-border spinner-border-sm"></div>
+                    </div>
+                    <div v-else>
+                        <div v-if="slackError" class="alert alert-danger py-2 small mb-3">{{ slackError }}</div>
+
+                        <div v-if="!slackEditing" class="row g-3 small">
+                            <div class="col-md-3"><div class="text-muted">App ID</div><div class="fw-medium">{{ slack.app_id || '—' }}</div></div>
+                            <div class="col-md-3"><div class="text-muted">Bot user ID</div><div class="fw-medium">{{ slack.bot_user_id || '—' }}</div></div>
+                            <div class="col-md-2"><div class="text-muted">Bot token</div><div class="fw-medium">{{ slack.bot_token_set ? 'set' : 'not set' }}</div></div>
+                            <div class="col-md-2"><div class="text-muted">Signing secret</div><div class="fw-medium">{{ slack.signing_secret_set ? 'set' : 'not set' }}</div></div>
+                            <div class="col-md-1"><div class="text-muted">Workspace</div><div class="fw-medium">{{ slack.team_id || '—' }}</div></div>
+                            <div class="col-md-1"><div class="text-muted">Enabled</div><span class="badge" :class="slack.enabled ? 'bg-success' : 'bg-secondary'">{{ slack.enabled ? 'Yes' : 'No' }}</span></div>
+                        </div>
+
+                        <div v-else class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label small fw-medium">App ID</label>
+                                <input v-model="slackForm.app_id" type="text" class="form-control" placeholder="A0XXXXXXX" :disabled="savingSlack" />
+                                <div class="form-text small">Slack App config &rarr; Basic Information &rarr; App ID</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-medium">Bot user ID</label>
+                                <input v-model="slackForm.bot_user_id" type="text" class="form-control" placeholder="U0XXXXXXX" :disabled="savingSlack" />
+                                <div class="form-text small">App config &rarr; App-Level Tokens / OAuth — the bot user the App posts as.</div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-medium">Bot token <span class="text-muted">(leave blank to keep existing)</span></label>
+                                <input v-model="slackForm.bot_token" type="password" class="form-control" :placeholder="slack.bot_token_set ? '•••• already set ••••' : 'xoxb-...'" :disabled="savingSlack" autocomplete="off" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small fw-medium">Signing secret <span class="text-muted">(leave blank to keep existing)</span></label>
+                                <input v-model="slackForm.signing_secret" type="password" class="form-control" :placeholder="slack.signing_secret_set ? '•••• already set ••••' : 'Slack Basic Information &rarr; Signing Secret'" :disabled="savingSlack" autocomplete="off" />
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label small fw-medium">Default workspace (team_id)</label>
+                                <input v-model="slackForm.team_id" type="text" class="form-control" placeholder="T0XXXXXXX" :disabled="savingSlack" />
+                                <div class="form-text small">Optional — only for proactive sends to a specific workspace.</div>
+                            </div>
+                            <div class="col-md-3 d-flex align-items-center pt-3">
+                                <div class="form-check form-switch">
+                                    <input v-model="slackForm.enabled" type="checkbox" class="form-check-input" id="slack-enabled" :disabled="savingSlack" />
+                                    <label class="form-check-label small" for="slack-enabled">Enabled</label>
+                                </div>
+                            </div>
+                            <div class="col-12 d-flex gap-2 pt-2">
+                                <button class="btn btn-sm btn-primary" @click="saveSlack" :disabled="savingSlack">
+                                    <span v-if="savingSlack" class="spinner-border spinner-border-sm me-1"></span>
+                                    Save
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" @click="cancelSlack" :disabled="savingSlack">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div v-else class="alert alert-warning">Agent not found.</div>
 </div>
 
