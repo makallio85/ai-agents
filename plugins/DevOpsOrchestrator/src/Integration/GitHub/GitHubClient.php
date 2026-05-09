@@ -98,6 +98,26 @@ class GitHubClient implements GitHubClientInterface
         return $response;
     }
 
+    public function listPullRequests(string $owner, string $repo, string $state = 'open'): array
+    {
+        return array_values($this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls?state={$state}&per_page=50"));
+    }
+
+    public function getPullRequest(string $owner, string $repo, int $number): array
+    {
+        return $this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls/{$number}");
+    }
+
+    public function getPullRequestFiles(string $owner, string $repo, int $number): array
+    {
+        return array_values($this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls/{$number}/files?per_page=100"));
+    }
+
+    public function getPullRequestCommits(string $owner, string $repo, int $number): array
+    {
+        return array_values($this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls/{$number}/commits?per_page=100"));
+    }
+
     /**
      * @param array<string, mixed> $body
      * @return array<string, mixed>

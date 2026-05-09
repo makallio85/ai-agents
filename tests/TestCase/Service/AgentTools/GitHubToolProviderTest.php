@@ -30,10 +30,10 @@ class GitHubToolProviderTest extends TestCase
 
     // ── getDefinitions() ──────────────────────────────────────────────────────
 
-    public function testGetDefinitionsReturnsSevenTools(): void
+    public function testGetDefinitionsReturnsExpectedToolCount(): void
     {
         $defs = $this->provider->getDefinitions();
-        $this->assertCount(7, $defs);
+        $this->assertCount(11, $defs);
     }
 
     public function testGetDefinitionsContainsExpectedToolNames(): void
@@ -48,6 +48,10 @@ class GitHubToolProviderTest extends TestCase
         $this->assertContains('github_comment_on_issue', $names);
         $this->assertContains('github_close_issue', $names);
         $this->assertContains('github_create_pull_request', $names);
+        $this->assertContains('github_list_pull_requests', $names);
+        $this->assertContains('github_get_pull_request', $names);
+        $this->assertContains('github_get_pull_request_files', $names);
+        $this->assertContains('github_get_pull_request_commits', $names);
     }
 
     // ── dispatch() — github_list_repos ────────────────────────────────────────

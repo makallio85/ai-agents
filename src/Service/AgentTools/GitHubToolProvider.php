@@ -130,6 +130,58 @@ class GitHubToolProvider
                     'required' => ['owner', 'repo', 'title', 'head', 'base'],
                 ],
             ),
+            new ToolDefinition(
+                name: 'github_list_pull_requests',
+                description: 'List pull requests in a GitHub repository. Use this to find open PRs before asking the user for a PR number.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
+                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
+                        'state' => ['type' => 'string', 'enum' => ['open', 'closed', 'all'], 'description' => 'Filter by state (default: open)'],
+                    ],
+                    'required' => ['owner', 'repo'],
+                ],
+            ),
+            new ToolDefinition(
+                name: 'github_get_pull_request',
+                description: 'Get details of a specific pull request including title, description, author, base/head branches, and merge status.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
+                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
+                        'pull_number' => ['type' => 'integer', 'description' => 'Pull request number'],
+                    ],
+                    'required' => ['owner', 'repo', 'pull_number'],
+                ],
+            ),
+            new ToolDefinition(
+                name: 'github_get_pull_request_files',
+                description: 'Get the list of files changed in a pull request, including the patch diff for each file. Use this to review code changes.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
+                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
+                        'pull_number' => ['type' => 'integer', 'description' => 'Pull request number'],
+                    ],
+                    'required' => ['owner', 'repo', 'pull_number'],
+                ],
+            ),
+            new ToolDefinition(
+                name: 'github_get_pull_request_commits',
+                description: 'Get the list of commits in a pull request with their messages and authors.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
+                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
+                        'pull_number' => ['type' => 'integer', 'description' => 'Pull request number'],
+                    ],
+                    'required' => ['owner', 'repo', 'pull_number'],
+                ],
+            ),
         ];
     }
 
@@ -151,6 +203,10 @@ class GitHubToolProvider
             'github_comment_on_issue' => $this->commentOnIssue($args),
             'github_close_issue' => $this->closeIssue($args),
             'github_create_pull_request' => $this->createPullRequest($args),
+            'github_list_pull_requests' => $this->listPullRequests($args),
+            'github_get_pull_request' => $this->getPullRequest($args),
+            'github_get_pull_request_files' => $this->getPullRequestFiles($args),
+            'github_get_pull_request_commits' => $this->getPullRequestCommits($args),
             default => throw new \InvalidArgumentException("Unknown tool: {$name}"),
         };
     }
@@ -253,5 +309,95 @@ class GitHubToolProvider
             ],
         );
         return "PR #{$result['number']} created: {$result['html_url']}";
+    }
+
+    /** @param array<string, mixed> $args */
+    private function listPullRequests(array $args): string
+    {
+        $prs = $this->github->listPullRequests(
+            (string)($args['owner'] ?? ''),
+            (string)($args['repo'] ?? ''),
+            (string)($args['state'] ?? 'open'),
+        );
+        if (empty($prs)) {
+            return 'No pull requests found.';
+        }
+        $lines = array_map(fn($pr) => sprintf(
+            'PR #%d [%s] "%s" — %s → %s — %s',
+            $pr['number'] ?? 0,
+            $pr['state'] ?? '',
+            $pr['title'] ?? '',
+            $pr['head']['ref'] ?? '',
+            $pr['base']['ref'] ?? '',
+            $pr['html_url'] ?? '',
+        ), $prs);
+        return implode("\n", $lines);
+    }
+
+    /** @param array<string, mixed> $args */
+    private function getPullRequest(array $args): string
+    {
+        $pr = $this->github->getPullRequest(
+            (string)($args['owner'] ?? ''),
+            (string)($args['repo'] ?? ''),
+            (int)($args['pull_number'] ?? 0),
+        );
+        return sprintf(
+            "PR #%d: %s\nAuthor: %s\nState: %s\nBase: %s ← Head: %s\nMergeable: %s\nURL: %s\n\n%s",
+            $pr['number'] ?? 0,
+            $pr['title'] ?? '',
+            $pr['user']['login'] ?? '',
+            $pr['state'] ?? '',
+            $pr['base']['ref'] ?? '',
+            $pr['head']['ref'] ?? '',
+            ($pr['mergeable'] ?? null) === true ? 'yes' : (($pr['mergeable'] ?? null) === false ? 'no (conflicts)' : 'unknown'),
+            $pr['html_url'] ?? '',
+            $pr['body'] ?? '(no description)',
+        );
+    }
+
+    /** @param array<string, mixed> $args */
+    private function getPullRequestFiles(array $args): string
+    {
+        $files = $this->github->getPullRequestFiles(
+            (string)($args['owner'] ?? ''),
+            (string)($args['repo'] ?? ''),
+            (int)($args['pull_number'] ?? 0),
+        );
+        if (empty($files)) {
+            return 'No files changed.';
+        }
+        $lines = [];
+        foreach ($files as $file) {
+            $lines[] = sprintf(
+                "--- %s [%s] +%d -%d ---\n%s",
+                $file['filename'] ?? '',
+                $file['status'] ?? '',
+                $file['additions'] ?? 0,
+                $file['deletions'] ?? 0,
+                $file['patch'] ?? '(binary or no diff)',
+            );
+        }
+        return implode("\n\n", $lines);
+    }
+
+    /** @param array<string, mixed> $args */
+    private function getPullRequestCommits(array $args): string
+    {
+        $commits = $this->github->getPullRequestCommits(
+            (string)($args['owner'] ?? ''),
+            (string)($args['repo'] ?? ''),
+            (int)($args['pull_number'] ?? 0),
+        );
+        if (empty($commits)) {
+            return 'No commits found.';
+        }
+        $lines = array_map(fn($c) => sprintf(
+            '%s %s (%s)',
+            substr((string)($c['sha'] ?? ''), 0, 7),
+            $c['commit']['message'] ?? '',
+            $c['commit']['author']['name'] ?? '',
+        ), $commits);
+        return implode("\n", $lines);
     }
 }

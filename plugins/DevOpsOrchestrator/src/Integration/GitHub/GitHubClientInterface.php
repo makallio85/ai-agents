@@ -72,4 +72,33 @@ interface GitHubClientInterface
      * @return array<string, mixed> Updated issue data.
      */
     public function closeIssue(string $owner, string $repo, int $issueNumber): array;
+
+    /**
+     * List pull requests for a repository.
+     *
+     * @param string $state 'open', 'closed', or 'all'
+     * @return list<array<string, mixed>> Pull request data.
+     */
+    public function listPullRequests(string $owner, string $repo, string $state = 'open'): array;
+
+    /**
+     * Get a single pull request with full metadata.
+     *
+     * @return array<string, mixed> Pull request data including head, base, body, etc.
+     */
+    public function getPullRequest(string $owner, string $repo, int $number): array;
+
+    /**
+     * List files changed in a pull request with patch diffs.
+     *
+     * @return list<array<string, mixed>> Each entry has filename, status, additions, deletions, patch.
+     */
+    public function getPullRequestFiles(string $owner, string $repo, int $number): array;
+
+    /**
+     * Get a list of commits in a pull request.
+     *
+     * @return list<array<string, mixed>> Commit data.
+     */
+    public function getPullRequestCommits(string $owner, string $repo, int $number): array;
 }
