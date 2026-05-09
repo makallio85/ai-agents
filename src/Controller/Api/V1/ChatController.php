@@ -253,10 +253,13 @@ class ChatController extends AppController
             $history = $this->chatSessionService->buildMessageHistory($session);
             $userId = $user->id;
 
-            // Detect whether this agent has a GitHub token in its contexts.
-            // If so, run the agentic loop (tool calling) instead of plain streaming.
-            $githubToken = $this->extractContextValue($agent, 'github_token');
-            $useAgentLoop = $githubToken !== null && $agent->llm_provider === 'openai';
+            // DevOpsOrchestrator agents with OpenAI always run the agentic tool-calling loop.
+            // The GitHub token is sourced from the authenticated user's active integration —
+            // no need to store it redundantly in agent_contexts.
+            $githubToken = $this->loadUserGithubToken($user->id);
+            $useAgentLoop = $agent->plugin === 'DevOpsOrchestrator'
+                && $agent->llm_provider === 'openai'
+                && $githubToken !== null;
 
             if ($useAgentLoop) {
                 $llmResponse = $this->runAgentLoop($agent, $history, $executionId, $githubToken, $assembledContent);
@@ -494,20 +497,21 @@ class ChatController extends AppController
     }
 
     /**
-     * Extracts a named context value from the agent's agent_contexts collection.
-     * Returns null when the key is not found.
+     * Loads the GitHub token from the authenticated user's most-recently-created
+     * active GitHub integration. Returns null when no active integration exists.
+     *
+     * This avoids duplicating the token in agent_contexts — the single source of
+     * truth for all GitHub credentials is the github_integrations table.
      */
-    private function extractContextValue(Agent $agent, string $key): ?string
+    private function loadUserGithubToken(int $userId): ?string
     {
-        if (empty($agent->agent_contexts)) {
-            return null;
-        }
-        foreach ($agent->agent_contexts as $ctx) {
-            if ($ctx->key === $key) {
-                return $ctx->value;
-            }
-        }
-        return null;
+        /** @var \App\Model\Entity\GithubIntegration|null $integration */
+        $integration = TableRegistry::getTableLocator()
+            ->get('GithubIntegrations')
+            ->find('activeByUser', userId: $userId)
+            ->first();
+
+        return $integration?->token ?: null;
     }
 
     /**
