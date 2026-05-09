@@ -131,7 +131,56 @@ class ProcessInboundMessageJob implements JobInterface
         $session->last_inbound_at = new DateTime();
         TableRegistry::getTableLocator()->get('ChatSessions')->save($session);
 
+        // Approval gate: WhatsApp guests created via OTP onboarding land in
+        // approval_state='pending'. Their messages are stored (so a superuser
+        // can review the conversation when approving) but no agent handler
+        // runs and we send a one-time courtesy notice on the first inbound.
+        if (!$this->isApproved($user)) {
+            $this->notifyPendingApproval($agent, $session, $user, $inbound);
+            return;
+        }
+
         $this->dispatchToHandlerOrHuman($agent, $session, $inbound, $user);
+    }
+
+    private function isApproved(User $user): bool
+    {
+        if (isset($user->is_approved)) {
+            return (bool)$user->is_approved;
+        }
+        // Default true for legacy users that pre-date the approval column.
+        return true;
+    }
+
+    private function notifyPendingApproval(Agent $agent, ChatSession $session, User $user, ChatMessage $inbound): void
+    {
+        $this->logService->info(
+            $agent->id,
+            'inbound-' . $inbound->id,
+            'Inbound from unapproved user; awaiting superuser approval',
+            ['session_id' => $session->id, 'user_id' => $user->id, 'phone' => $user->phone_number ?? null],
+            $user->id,
+        );
+
+        // Only send the courtesy notice once per session — repeated reminders
+        // would just spam the user (and burn the 24h window on follow-ups).
+        $messages = TableRegistry::getTableLocator()->get('ChatMessages');
+        $alreadyNotified = $messages->find()
+            ->where([
+                'chat_session_id' => $session->id,
+                'role' => ChatMessage::ROLE_SYSTEM,
+                'metadata LIKE' => '%pending_approval_notice%',
+            ])->count() > 0;
+        if ($alreadyNotified) {
+            return;
+        }
+        $notice = $this->dispatcher->sendSystem(
+            $session,
+            "Thanks for messaging — your access is pending approval. We'll let you know once it's been reviewed."
+        );
+        // Tag the notice so the duplicate-suppression check above can find it.
+        $notice->metadata = json_encode(['pending_approval_notice' => true]);
+        $messages->save($notice);
     }
 
     private function findOrCreateSession(User $user, Agent $agent, InboundEnvelope $envelope): ChatSession

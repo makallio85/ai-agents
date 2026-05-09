@@ -8,9 +8,11 @@ use App\Model\Entity\Agent;
 /**
  * Resolved WhatsApp configuration for one agent.
  *
- * Built by WhatsAppConfigService from agent_contexts rows. Secrets
- * (access_token, app_secret) are decrypted on access; this object holds
- * them in memory only for the duration of a single request / job.
+ * Per-agent fields (phone_number_id, access_token, ...) come from
+ * agent_contexts. The Meta App secret is global (Configure::read
+ * 'Channels.whatsapp.appSecret') because it is per-App, not per-phone — all
+ * agents that share a Meta App share the same secret. WhatsAppConfigService
+ * resolves both into one immutable DTO.
  */
 class WhatsAppAgentConfig
 {

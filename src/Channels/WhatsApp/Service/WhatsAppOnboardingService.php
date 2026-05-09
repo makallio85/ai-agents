@@ -151,11 +151,14 @@ class WhatsAppOnboardingService
         }
 
         // Auto-create a guest user so messages have something to attach to.
-        // Role 'whatsapp_guest' must exist (seeded by ops) — fall back to 'user' if not.
+        // Land in approval_state='pending' on the whatsapp_guest role until
+        // a superuser approves; ProcessInboundMessageJob blocks agent
+        // dispatch on is_approved so messages are buffered safely meanwhile.
         $roles = TableRegistry::getTableLocator()->get('Roles');
-        $role = $roles->find()->where(['slug' => 'whatsapp_guest'])->first()
-            ?? $roles->find()->where(['slug' => 'user'])->first();
+        $role = $roles->find()->where(['slug' => 'whatsapp_guest'])->first();
         if ($role === null) {
+            // No whatsapp_guest role seeded — refuse to create rather than
+            // accidentally promote a stranger to the regular user role.
             return null;
         }
 
@@ -168,6 +171,8 @@ class WhatsAppOnboardingService
             'last_name' => $phone,
             'role_id' => $role->id,
             'is_active' => true,
+            'is_approved' => false,
+            'approval_state' => User::APPROVAL_PENDING,
         ]);
         if (!$users->save($entity)) {
             return null;

@@ -13,22 +13,22 @@ use Cake\Utility\Security;
  * Reads and writes the WhatsApp configuration for each agent, stored as
  * key-value rows in agent_contexts under the 'whatsapp.*' namespace.
  *
- * Secrets (access_token, app_secret) are encrypted at rest using Cake's
- * Security::encrypt with App.encryptionKey, decrypted only when assembled
- * into a WhatsAppAgentConfig DTO for a single transport call.
+ * Per-agent secrets (access_token) are encrypted at rest using Cake's
+ * Security::encrypt with the application's encryption key, and decrypted
+ * only when assembled into a WhatsAppAgentConfig DTO for a single transport
+ * call. The Meta App secret is NOT per-agent — it is read from
+ * Configure::read('Channels.whatsapp.appSecret').
  */
 class WhatsAppConfigService
 {
     public const KEY_PHONE_NUMBER_ID = 'whatsapp.phone_number_id';
     public const KEY_DISPLAY_NUMBER = 'whatsapp.display_number';
     public const KEY_ACCESS_TOKEN = 'whatsapp.access_token';
-    public const KEY_APP_SECRET = 'whatsapp.app_secret';
     public const KEY_WELCOME_TEMPLATE = 'whatsapp.welcome_template_name';
     public const KEY_ENABLED = 'whatsapp.enabled';
 
     private const ENCRYPTED_KEYS = [
         self::KEY_ACCESS_TOKEN,
-        self::KEY_APP_SECRET,
     ];
 
     public function findConfigByAgentId(int $agentId): ?WhatsAppAgentConfig
@@ -48,7 +48,6 @@ class WhatsAppConfigService
     public function findConfigByPhoneNumberId(string $phoneNumberId): ?WhatsAppAgentConfig
     {
         $agentContexts = TableRegistry::getTableLocator()->get('AgentContexts');
-        // Phone-number-ids are stored in plaintext, so we can match directly.
         /** @var AgentContext|null $hit */
         $hit = $agentContexts->find()
             ->where([
@@ -62,19 +61,43 @@ class WhatsAppConfigService
         return $this->findConfigByAgentId($hit->agent_id);
     }
 
+    /**
+     * Returns the per-agent settings as a plain associative array suitable for
+     * the admin UI. Sensitive values are masked.
+     *
+     * @return array{phone_number_id: ?string, display_number: ?string, access_token_set: bool, welcome_template_name: ?string, enabled: bool, has_global_app_secret: bool}
+     */
+    public function readForUi(int $agentId): array
+    {
+        $values = $this->loadValues($agentId);
+        return [
+            'phone_number_id' => $values[self::KEY_PHONE_NUMBER_ID] ?? null,
+            'display_number' => $values[self::KEY_DISPLAY_NUMBER] ?? null,
+            'access_token_set' => !empty($values[self::KEY_ACCESS_TOKEN]),
+            'welcome_template_name' => $values[self::KEY_WELCOME_TEMPLATE] ?? null,
+            'enabled' => ($values[self::KEY_ENABLED] ?? 'false') === 'true',
+            'has_global_app_secret' => trim((string)Configure::read('Channels.whatsapp.appSecret', '')) !== '',
+        ];
+    }
+
+    /**
+     * Writes config from the admin UI. accessToken is optional — if empty
+     * the existing value is left untouched (so the admin doesn't have to
+     * paste it back in on every edit).
+     */
     public function setForAgent(
         int $agentId,
         string $phoneNumberId,
         string $displayNumber,
-        string $accessToken,
-        string $appSecret,
-        ?string $welcomeTemplateName = null,
-        bool $enabled = true,
+        ?string $accessToken,
+        ?string $welcomeTemplateName,
+        bool $enabled,
     ): void {
         $this->upsert($agentId, self::KEY_PHONE_NUMBER_ID, $phoneNumberId);
         $this->upsert($agentId, self::KEY_DISPLAY_NUMBER, $displayNumber);
-        $this->upsert($agentId, self::KEY_ACCESS_TOKEN, $accessToken);
-        $this->upsert($agentId, self::KEY_APP_SECRET, $appSecret);
+        if ($accessToken !== null && $accessToken !== '') {
+            $this->upsert($agentId, self::KEY_ACCESS_TOKEN, $accessToken);
+        }
         if ($welcomeTemplateName !== null) {
             $this->upsert($agentId, self::KEY_WELCOME_TEMPLATE, $welcomeTemplateName);
         }
@@ -90,10 +113,11 @@ class WhatsAppConfigService
             }
             $values[$ctx->key] = $ctx->value;
         }
+        $appSecret = (string)Configure::read('Channels.whatsapp.appSecret', '');
         if (
             empty($values[self::KEY_PHONE_NUMBER_ID])
             || empty($values[self::KEY_ACCESS_TOKEN])
-            || empty($values[self::KEY_APP_SECRET])
+            || $appSecret === ''
         ) {
             return null;
         }
@@ -103,10 +127,24 @@ class WhatsAppConfigService
             phoneNumberId: (string)$values[self::KEY_PHONE_NUMBER_ID],
             displayNumber: (string)($values[self::KEY_DISPLAY_NUMBER] ?? ''),
             accessToken: $this->decrypt((string)$values[self::KEY_ACCESS_TOKEN]),
-            appSecret: $this->decrypt((string)$values[self::KEY_APP_SECRET]),
+            appSecret: $appSecret,
             welcomeTemplateName: $values[self::KEY_WELCOME_TEMPLATE] ?? null,
             enabled: ($values[self::KEY_ENABLED] ?? 'true') === 'true',
         );
+    }
+
+    /** @return array<string, string> */
+    private function loadValues(int $agentId): array
+    {
+        $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
+        $rows = $contexts->find()
+            ->where(['agent_id' => $agentId, 'key LIKE' => 'whatsapp.%'])
+            ->all();
+        $values = [];
+        foreach ($rows as $row) {
+            $values[(string)$row->key] = (string)$row->value;
+        }
+        return $values;
     }
 
     private function upsert(int $agentId, string $key, string $value): void
@@ -142,7 +180,6 @@ class WhatsAppConfigService
     {
         $decoded = base64_decode($stored, true);
         if ($decoded === false) {
-            // Backward-compat: not encrypted yet (e.g. seeded plain in dev).
             return $stored;
         }
         $plain = Security::decrypt($decoded, $this->encryptionKey());

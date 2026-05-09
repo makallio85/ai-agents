@@ -7,6 +7,7 @@ use App\Channels\WhatsApp\Service\WhatsAppConfigService;
 use App\Channels\WhatsApp\WhatsAppSignatureVerifier;
 use App\Controller\AppController;
 use App\Messaging\Job\ProcessInboundMessageJob;
+use App\Model\Entity\InboundEvent;
 use Cake\Core\Configure;
 use Cake\Http\Response;
 use Cake\ORM\TableRegistry;
@@ -79,17 +80,27 @@ class WhatsAppController extends AppController
             return $this->response->withStatus(200)->withStringBody('ok');
         }
 
-        $config = $this->configService->findConfigByPhoneNumberId($phoneNumberId);
-        if ($config === null) {
-            // Unknown number. Persist for audit but mark signature invalid.
-            $this->persistEvent($payload, $phoneNumberId, $rawBody, signatureValid: false, errorMessage: 'unknown phone_number_id');
-            return $this->response->withStatus(200)->withStringBody('ok');
+        $appSecret = (string)Configure::read('Channels.whatsapp.appSecret', '');
+        if ($appSecret === '') {
+            $this->persistEvent($payload, $phoneNumberId, $rawBody, signatureValid: false, errorMessage: 'WHATSAPP_APP_SECRET not configured');
+            return $this->response->withStatus(500)->withStringBody('app secret missing');
         }
 
-        $signatureValid = $this->verifier->verify($config->appSecret, $rawBody, $signatureHeader);
+        // Verify signature against the global app_secret BEFORE trusting any
+        // payload contents to look up the agent. Even if the agent isn't
+        // registered, a forged signature must be rejected.
+        $signatureValid = $this->verifier->verify($appSecret, $rawBody, $signatureHeader);
         if (!$signatureValid) {
             $this->persistEvent($payload, $phoneNumberId, $rawBody, signatureValid: false, errorMessage: 'invalid signature');
             return $this->response->withStatus(401)->withStringBody('invalid signature');
+        }
+
+        $config = $this->configService->findConfigByPhoneNumberId($phoneNumberId);
+        if ($config === null) {
+            // Signature was valid but no agent claims this phone_number_id.
+            // Audit and ack so Meta stops retrying.
+            $this->persistEvent($payload, $phoneNumberId, $rawBody, signatureValid: true, errorMessage: 'unknown phone_number_id');
+            return $this->response->withStatus(200)->withStringBody('ok');
         }
 
         $event = $this->persistEvent($payload, $phoneNumberId, $rawBody, signatureValid: true);
@@ -126,7 +137,7 @@ class WhatsAppController extends AppController
         string $rawBody,
         bool $signatureValid,
         ?string $errorMessage = null,
-    ): ?\App\Model\Entity\InboundEvent {
+    ): ?InboundEvent {
         $events = TableRegistry::getTableLocator()->get('InboundEvents');
         $eventId = $this->deriveEventId($payload, $rawBody);
 
@@ -136,7 +147,7 @@ class WhatsAppController extends AppController
             'event_id' => $eventId,
         ])->first();
         if ($existing !== null) {
-            /** @var \App\Model\Entity\InboundEvent $existing */
+            /** @var InboundEvent $existing */
             return $existing;
         }
 
@@ -149,7 +160,7 @@ class WhatsAppController extends AppController
             'error_message' => $errorMessage,
         ]);
         $events->save($entity);
-        /** @var \App\Model\Entity\InboundEvent $entity */
+        /** @var InboundEvent $entity */
         return $entity;
     }
 

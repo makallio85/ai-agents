@@ -504,6 +504,9 @@ return [
         'whatsapp' => [
             'apiUrl' => env('WHATSAPP_API_URL', 'https://graph.facebook.com/v20.0'),
             'verifyToken' => env('WHATSAPP_VERIFY_TOKEN', ''),
+            // App secret is per-Meta-App, not per-agent. All agents on the same
+            // Meta App share this — used to verify webhook signatures.
+            'appSecret' => env('WHATSAPP_APP_SECRET', ''),
             'otpTtl' => (int)env('WHATSAPP_OTP_TTL', 600),
             'otpLength' => (int)env('WHATSAPP_OTP_LENGTH', 6),
             'maxOtpAttempts' => (int)env('WHATSAPP_OTP_MAX_ATTEMPTS', 5),

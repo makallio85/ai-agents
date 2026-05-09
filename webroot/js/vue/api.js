@@ -113,6 +113,24 @@ var Api = (function () {
         update: function (id, data) { return _coreRequest('PUT', 'agents/update/' + id, data); },
         del: function (id) { return _coreRequest('DELETE', 'agents/delete/' + id); },
         logs: function (id) { return _coreRequest('GET', 'agents/logs/' + id); },
+        whatsappConfig: function (id) { return _coreRequest('GET', 'agents/whatsapp-config/' + id); },
+        updateWhatsappConfig: function (id, data) { return _coreRequest('POST', 'agents/whatsapp-config/' + id, data); },
+    };
+
+    var users = {
+        index: function (params) {
+            var qs = '';
+            if (params) {
+                var parts = Object.keys(params)
+                    .filter(function (k) { return params[k] !== '' && params[k] != null; })
+                    .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); });
+                if (parts.length) { qs = '?' + parts.join('&'); }
+            }
+            return _coreRequest('GET', 'users' + qs);
+        },
+        view: function (id) { return _coreRequest('GET', 'users/view/' + id); },
+        approve: function (id, body) { return _coreRequest('POST', 'users/approve/' + id, body || {}); },
+        reject: function (id) { return _coreRequest('POST', 'users/reject/' + id); },
     };
 
     var conversations = {
@@ -244,6 +262,7 @@ var Api = (function () {
         createNamespace: createNamespace,
         auth: auth,
         agents: agents,
+        users: users,
         conversations: conversations,
         labels: labels,
         logs: logs,

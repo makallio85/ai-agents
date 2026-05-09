@@ -67,6 +67,7 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index']);
         $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
         $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index']);
+        $builder->connect('/whatsapp-guests', ['controller' => 'WhatsappGuests', 'action' => 'index']);
 
         $builder->fallbacks();
     });
@@ -90,6 +91,15 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/agents/update/{id}', ['controller' => 'Agents', 'action' => 'update'], ['_name' => 'api.v1.agents.update', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/agents/delete/{id}', ['controller' => 'Agents', 'action' => 'delete'], ['_name' => 'api.v1.agents.delete', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/agents/logs/{id}', ['controller' => 'Agents', 'action' => 'logs'], ['_name' => 'api.v1.agents.logs', 'id' => '\d+', 'pass' => ['id']]);
+        // Per-agent WhatsApp configuration (admin/superuser only via chat:configure)
+        $builder->connect('/agents/whatsapp-config/{id}', ['controller' => 'Agents', 'action' => 'whatsappConfig'], ['_method' => 'GET', '_name' => 'api.v1.agents.whatsapp_config', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/agents/whatsapp-config/{id}', ['controller' => 'Agents', 'action' => 'updateWhatsappConfig'], ['_method' => 'POST', '_name' => 'api.v1.agents.update_whatsapp_config', 'id' => '\d+', 'pass' => ['id']]);
+
+        // Users — approval workflow (and minimal admin listing)
+        $builder->connect('/users', ['controller' => 'Users', 'action' => 'index'], ['_name' => 'api.v1.users.index']);
+        $builder->connect('/users/view/{id}', ['controller' => 'Users', 'action' => 'view'], ['_name' => 'api.v1.users.view', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/users/approve/{id}', ['controller' => 'Users', 'action' => 'approve'], ['_method' => 'POST', '_name' => 'api.v1.users.approve', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/users/reject/{id}', ['controller' => 'Users', 'action' => 'reject'], ['_method' => 'POST', '_name' => 'api.v1.users.reject', 'id' => '\d+', 'pass' => ['id']]);
 
         // Conversation CRUD
         $builder->connect('/conversations', ['controller' => 'Conversations', 'action' => 'index'], ['_name' => 'api.v1.conversations.index']);
