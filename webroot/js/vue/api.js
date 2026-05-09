@@ -115,6 +115,8 @@ var Api = (function () {
         logs: function (id) { return _coreRequest('GET', 'agents/logs/' + id); },
         whatsappConfig: function (id) { return _coreRequest('GET', 'agents/whatsapp-config/' + id); },
         updateWhatsappConfig: function (id, data) { return _coreRequest('POST', 'agents/whatsapp-config/' + id, data); },
+        slackConfig: function (id) { return _coreRequest('GET', 'agents/slack-config/' + id); },
+        updateSlackConfig: function (id, data) { return _coreRequest('POST', 'agents/slack-config/' + id, data); },
     };
 
     var users = {

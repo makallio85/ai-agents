@@ -227,11 +227,23 @@ class Application extends BaseApplication implements
             ->addArgument(\App\Channels\WhatsApp\Service\WhatsAppConfigService::class)
             ->addArgument(\App\Channels\WhatsApp\Service\WhatsAppOnboardingService::class);
 
+        // ---------- Slack channel ----------
+        $container->addShared(\App\Channels\Slack\SlackClientInterface::class, \App\Channels\Slack\SlackClient::class);
+        $container->addShared(\App\Channels\Slack\Service\SlackConfigService::class);
+        $container->addShared(\App\Channels\Slack\Service\SlackOnboardingService::class)
+            ->addArgument(\App\Channels\Slack\SlackClientInterface::class)
+            ->addArgument(\App\Channels\Slack\Service\SlackConfigService::class);
+        $container->addShared(\App\Channels\Slack\SlackTransport::class)
+            ->addArgument(\App\Channels\Slack\SlackClientInterface::class)
+            ->addArgument(\App\Channels\Slack\Service\SlackConfigService::class)
+            ->addArgument(\App\Channels\Slack\Service\SlackOnboardingService::class);
+
         // ChannelRegistry is constructed eagerly so we can register transports here;
         // the container then hands the same instance to anyone who asks for it.
         $registry = new \App\Messaging\Service\ChannelRegistry();
         $container->addShared(\App\Messaging\Service\ChannelRegistry::class, $registry);
         $registry->register($container->get(\App\Channels\WhatsApp\WhatsAppTransport::class));
+        $registry->register($container->get(\App\Channels\Slack\SlackTransport::class));
 
         // ---------- Queue jobs ----------
         $container->add(\App\Messaging\Job\ProcessInboundMessageJob::class)

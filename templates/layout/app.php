@@ -100,9 +100,9 @@
            class="nav-link <?= $this->request->getParam('controller') === 'Chat' ? 'active' : '' ?>">
             <i class="bi bi-robot"></i> Chat
         </a>
-        <a href="<?= $this->Url->build('/whatsapp-guests') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'WhatsappGuests' ? 'active' : '' ?>">
-            <i class="bi bi-whatsapp"></i> WhatsApp Guests
+        <a href="<?= $this->Url->build('/messaging-guests') ?>"
+           class="nav-link <?= $this->request->getParam('controller') === 'MessagingGuests' ? 'active' : '' ?>">
+            <i class="bi bi-people"></i> Messaging Guests
         </a>
 
         <div class="nav-section">Settings</div>

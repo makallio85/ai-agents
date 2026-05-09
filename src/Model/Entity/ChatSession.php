@@ -37,6 +37,7 @@ class ChatSession extends Entity
 {
     public const CHANNEL_WEB = 'web';
     public const CHANNEL_WHATSAPP = 'whatsapp';
+    public const CHANNEL_SLACK = 'slack';
     public const CHANNEL_EMAIL = 'email';
 
     public const STATE_AGENT = 'agent';

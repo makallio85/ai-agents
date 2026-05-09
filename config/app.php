@@ -512,5 +512,11 @@ return [
             'maxOtpAttempts' => (int)env('WHATSAPP_OTP_MAX_ATTEMPTS', 5),
             'windowHours' => (int)env('WHATSAPP_WINDOW_HOURS', 24),
         ],
+        'slack' => [
+            'apiUrl' => env('SLACK_API_URL', 'https://slack.com/api'),
+            // Slack signing secrets are per-Slack-App; one Slack App per agent
+            // means the secret lives in agent_contexts under slack.signing_secret,
+            // NOT here. This block holds only global/transport-level settings.
+        ],
     ],
 ];

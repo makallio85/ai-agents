@@ -109,16 +109,16 @@ class ProcessInboundMessageJob implements JobInterface
             }
             $verified = $transport->handleUnverifiedSender($envelope, $agent);
             if ($verified === null) {
-                return; // OTP issued or rejected; await next inbound
+                // Transport buffered or rejected; nothing more to do for this envelope.
+                // (WhatsApp: OTP issued, or code wrong; verification completes asynchronously
+                // and replays the buffered original via direct persistence.)
+                return;
             }
+            // Transport identified the user immediately (e.g. Slack, where the
+            // sender's identity was already authenticated by the provider).
+            // Fall through and process the current envelope normally with the
+            // resolved user.
             $user = $verified;
-            // Transport's handleUnverifiedSender is responsible for replaying any
-            // buffered original message via the dispatcher / direct persistence,
-            // so the current inbound (which was the code submission) does not get
-            // turned into an agent-visible ChatMessage. If the transport instead
-            // returned a User on first contact (no verification needed), fall
-            // through and persist the current inbound normally.
-            return;
         }
 
         $session = $this->findOrCreateSession($user, $agent, $envelope);

@@ -17,20 +17,27 @@ use Cake\I18n\DateTime;
 class UsersController extends AppController
 {
     /**
-     * GET /api/v1/users?approval_state=pending
+     * GET /api/v1/users?approval_state=pending&role=whatsapp_guest
      *
-     * Lists users with an optional approval-state filter. Used by the
-     * "WhatsApp Guests" admin page to show entries awaiting review.
+     * Lists users filtered by approval state and / or role slug. Used by the
+     * Messaging Guests admin page to show entries awaiting review across
+     * channels (whatsapp_guest, slack_guest, ...).
      */
     public function index(): void
     {
         $this->requirePermission('users', 'list_pending');
 
         $state = (string)$this->request->getQuery('approval_state', '');
+        $roleSlug = (string)$this->request->getQuery('role', '');
         $users = $this->fetchTable('Users');
         $query = $users->find()->contain(['Roles']);
         if ($state !== '') {
             $query = $query->where(['Users.approval_state' => $state]);
+        }
+        if ($roleSlug !== '') {
+            $query = $query->matching('Roles', function ($q) use ($roleSlug) {
+                return $q->where(['Roles.slug' => $roleSlug]);
+            });
         }
         $rows = $query->orderByDesc('Users.created')->all()->toList();
         $this->success($rows, ['count' => count($rows)]);

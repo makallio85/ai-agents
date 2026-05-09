@@ -65,6 +65,28 @@
                 enabled: false,
             });
 
+            // Slack config state
+            var slack = ref({
+                app_id: null,
+                bot_user_id: null,
+                bot_token_set: false,
+                signing_secret_set: false,
+                team_id: null,
+                enabled: false,
+            });
+            var slackEditing = ref(false);
+            var loadingSlack = ref(true);
+            var savingSlack = ref(false);
+            var slackError = ref('');
+            var slackForm = ref({
+                app_id: '',
+                bot_user_id: '',
+                bot_token: '',
+                signing_secret: '',
+                team_id: '',
+                enabled: false,
+            });
+
             // ── Computed ──────────────────────────────────────────────
 
             var modelPlaceholder = computed(function () {
@@ -158,6 +180,58 @@
                 }
             }
 
+            async function loadSlack() {
+                loadingSlack.value = true;
+                try {
+                    var data = await Api.agents.slackConfig(agentId);
+                    slack.value = data.data || slack.value;
+                } catch (e) {
+                    // Permission denied is silent — UI stays in default state.
+                } finally {
+                    loadingSlack.value = false;
+                }
+            }
+
+            function openSlackEdit() {
+                slackForm.value = {
+                    app_id: slack.value.app_id || '',
+                    bot_user_id: slack.value.bot_user_id || '',
+                    bot_token: '',
+                    signing_secret: '',
+                    team_id: slack.value.team_id || '',
+                    enabled: !!slack.value.enabled,
+                };
+                slackError.value = '';
+                slackEditing.value = true;
+            }
+
+            function cancelSlack() {
+                slackEditing.value = false;
+                slackError.value = '';
+            }
+
+            async function saveSlack() {
+                if (savingSlack.value) { return; }
+                savingSlack.value = true;
+                slackError.value = '';
+                try {
+                    await Api.agents.updateSlackConfig(agentId, {
+                        app_id: slackForm.value.app_id,
+                        bot_user_id: slackForm.value.bot_user_id,
+                        bot_token: slackForm.value.bot_token || '',
+                        signing_secret: slackForm.value.signing_secret || '',
+                        team_id: slackForm.value.team_id || '',
+                        enabled: !!slackForm.value.enabled,
+                    });
+                    await loadSlack();
+                    slackEditing.value = false;
+                } catch (err) {
+                    slackError.value = err.message || 'Failed to save Slack configuration';
+                } finally {
+                    savingSlack.value = false;
+                }
+            }
+
             // ── Edit ──────────────────────────────────────────────────
 
             /**
@@ -237,6 +311,7 @@
                 load();
                 loadLogs();
                 loadWhatsapp();
+                loadSlack();
             });
 
             // Open the WhatsApp form when the user clicks Edit; a watch on the
@@ -272,6 +347,15 @@
                 openWhatsappEdit: openWhatsappEdit,
                 cancelWhatsapp: cancelWhatsapp,
                 saveWhatsapp: saveWhatsapp,
+                slack: slack,
+                slackEditing: slackEditing,
+                loadingSlack: loadingSlack,
+                savingSlack: savingSlack,
+                slackError: slackError,
+                slackForm: slackForm,
+                openSlackEdit: openSlackEdit,
+                cancelSlack: cancelSlack,
+                saveSlack: saveSlack,
             };
         },
     }).mount('#agent-view-app');

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controller\Api\V1;
 
+use App\Channels\Slack\Service\SlackConfigService;
 use App\Channels\WhatsApp\Service\WhatsAppConfigService;
 use App\Service\AgentService;
 use App\Service\AgentLogService;
@@ -11,12 +12,14 @@ class AgentsController extends AppController
 {
     private AgentService $agentService;
     private WhatsAppConfigService $whatsappConfig;
+    private SlackConfigService $slackConfig;
 
     public function initialize(): void
     {
         parent::initialize();
         $this->agentService = new AgentService(new AgentLogService());
         $this->whatsappConfig = new WhatsAppConfigService();
+        $this->slackConfig = new SlackConfigService();
     }
 
     /**
@@ -183,5 +186,72 @@ class AgentsController extends AppController
         );
 
         $this->success($this->whatsappConfig->readForUi($id));
+    }
+
+    /**
+     * GET /api/v1/agents/slack-config/:id
+     */
+    public function slackConfig(int $id): void
+    {
+        $this->requirePermission('chat', 'configure');
+        $agent = $this->agentService->findById($id);
+        if ($agent === null) {
+            $this->error('Agent not found', [], 404);
+            return;
+        }
+        $this->success($this->slackConfig->readForUi($id));
+    }
+
+    /**
+     * POST /api/v1/agents/slack-config/:id
+     *
+     * Body: { app_id, bot_user_id, bot_token?, signing_secret?, team_id?, enabled }
+     *
+     * bot_token and signing_secret are optional on update — leave blank to
+     * keep existing encrypted values. Both are mandatory on first save.
+     */
+    public function updateSlackConfig(int $id): void
+    {
+        $this->requirePermission('chat', 'configure');
+        $agent = $this->agentService->findById($id);
+        if ($agent === null) {
+            $this->error('Agent not found', [], 404);
+            return;
+        }
+
+        $data = $this->request->getData();
+        $appId = trim((string)($data['app_id'] ?? ''));
+        $botUserId = trim((string)($data['bot_user_id'] ?? ''));
+        if ($appId === '' || $botUserId === '') {
+            $this->error('app_id and bot_user_id are required', [], 422);
+            return;
+        }
+
+        $current = $this->slackConfig->readForUi($id);
+        $botToken = isset($data['bot_token']) ? trim((string)$data['bot_token']) : null;
+        $signingSecret = isset($data['signing_secret']) ? trim((string)$data['signing_secret']) : null;
+        if (!$current['bot_token_set'] && ($botToken === null || $botToken === '')) {
+            $this->error('bot_token is required on first save', [], 422);
+            return;
+        }
+        if (!$current['signing_secret_set'] && ($signingSecret === null || $signingSecret === '')) {
+            $this->error('signing_secret is required on first save', [], 422);
+            return;
+        }
+
+        $teamId = isset($data['team_id']) ? trim((string)$data['team_id']) : null;
+        $enabled = (bool)($data['enabled'] ?? false);
+
+        $this->slackConfig->setForAgent(
+            agentId: $id,
+            appId: $appId,
+            botUserId: $botUserId,
+            botToken: $botToken === '' ? null : $botToken,
+            signingSecret: $signingSecret === '' ? null : $signingSecret,
+            teamId: $teamId === '' ? null : $teamId,
+            enabled: $enabled,
+        );
+
+        $this->success($this->slackConfig->readForUi($id));
     }
 }

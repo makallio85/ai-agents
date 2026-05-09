@@ -66,20 +66,22 @@ interface ChannelTransportInterface
     public function parseInbound(InboundEvent $event): array;
 
     /**
-     * Drive identity verification for an unknown sender.
+     * Drive identity resolution for an unknown sender.
      *
-     * Implementations decide based on the presence of an active
-     * ChannelVerification row whether this inbound starts a new flow (issue
-     * OTP, buffer the original body) or completes one (interpret body as the
-     * submitted code).
+     * Two valid flows the inbound job supports:
      *
-     * Returns:
-     *   - null  : OTP was issued or submitted code was invalid; caller ACKs
-     *             and waits for the next inbound.
-     *   - User  : verification just completed; caller continues normal routing
-     *             with this user as the sender. If a buffered original message
-     *             exists, the implementation has already replayed it via the
-     *             dispatcher.
+     * 1. Async / two-phase verification (e.g. WhatsApp OTP). First inbound
+     *    issues a code and buffers the original body. Subsequent inbound
+     *    interprets body as the submitted code. The transport replays the
+     *    buffered original itself by writing a ChatMessage row directly.
+     *    Return null in both phases — the inbound job does not continue
+     *    processing the current envelope as a real chat message.
+     *
+     * 2. Single-step resolution (e.g. Slack, where the provider already
+     *    authenticated the user). The transport looks up or creates a User
+     *    on the spot and returns it. The inbound job then continues with
+     *    that User and persists the current envelope as a normal inbound
+     *    chat_messages row.
      *
      * Only called by ProcessInboundMessageJob when both
      * resolveUserByExternalIdentifier() returned null AND requiresVerification()

@@ -43,6 +43,7 @@ class ChatSessionsTable extends Table
         $validator->inList('channel', [
             ChatSession::CHANNEL_WEB,
             ChatSession::CHANNEL_WHATSAPP,
+            ChatSession::CHANNEL_SLACK,
             ChatSession::CHANNEL_EMAIL,
         ], 'channel must be a recognised value');
         $validator->inList('assignment_state', [
