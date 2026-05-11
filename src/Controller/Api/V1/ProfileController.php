@@ -19,6 +19,8 @@ class ProfileController extends AppController
      * GET /api/v1/profile
      *
      * Returns the currently authenticated user's profile (without password).
+     * Always reads from the database — the session identity can be stale after
+     * a profile update, so we must not use getCurrentUser() as the data source.
      */
     public function view(): void
     {
@@ -28,12 +30,19 @@ class ProfileController extends AppController
             return;
         }
 
+        /** @var \App\Model\Entity\User|null $record */
+        $record = $this->fetchTable('Users')->find()->where(['Users.id' => $user->id])->first();
+        if ($record === null) {
+            $this->error('User not found', [], 404);
+            return;
+        }
+
         $this->success([
-            'id'         => $user->id,
-            'username'   => $user->username,
-            'email'      => $user->email,
-            'first_name' => $user->first_name,
-            'last_name'  => $user->last_name,
+            'id'         => $record->id,
+            'username'   => $record->username,
+            'email'      => $record->email,
+            'first_name' => $record->first_name,
+            'last_name'  => $record->last_name,
         ]);
     }
 
@@ -76,6 +85,9 @@ class ProfileController extends AppController
             $this->error('Failed to save profile', [], 422);
             return;
         }
+
+        // Refresh the session identity so subsequent reads return the updated values
+        $this->Authentication->setIdentity($record);
 
         $this->success([
             'id'         => $record->id,
