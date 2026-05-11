@@ -50,7 +50,7 @@ class InitialDataSeed extends BaseSeed
         }
 
         // Permissions — skip modules that already have entries for these roles
-        $modules = ['agents', 'conversations', 'users', 'roles', 'labels', 'github_integrations', 'execution_history', 'agent_logs', 'prompt_versions'];
+        $modules = ['agents', 'chat', 'conversations', 'users', 'roles', 'labels', 'github_integrations', 'execution_history', 'agent_logs', 'prompt_versions'];
         $actions = ['read', 'create', 'update', 'delete'];
 
         $existingPerms = $adapter->fetchAll(
