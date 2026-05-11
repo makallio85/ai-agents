@@ -20,7 +20,7 @@ class PermissionsTable extends Table
     public function validationDefault(Validator $validator): Validator
     {
         $validator->notEmptyString('module');
-        $validator->inList('action', ['read', 'create', 'update', 'delete']);
+        $validator->inList('action', ['read', 'create', 'update', 'delete', 'approve', 'reject', 'list_pending', 'configure', 'escalate', 'assign']);
         return $validator;
     }
 }

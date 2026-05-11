@@ -118,8 +118,17 @@
            class="nav-link <?= $this->request->getParam('controller') === 'Logs' ? 'active' : '' ?>">
             <i class="bi bi-journal-text"></i> Logs
         </a>
+        <a href="<?= $this->Url->build('/settings/permissions') ?>"
+           class="nav-link <?= $this->request->getParam('controller') === 'Settings' ? 'active' : '' ?>">
+            <i class="bi bi-shield-lock"></i> Permissions
+        </a>
     </div>
     <div class="mt-auto border-top border-secondary p-3">
+        <a href="<?= $this->Url->build('/profile') ?>"
+           class="nav-link px-0 mb-2 <?= $this->request->getParam('controller') === 'Profile' ? 'active' : '' ?>">
+            <i class="bi bi-person-circle me-1"></i>
+            <?= h($this->Identity->get('email') ?? '') ?>
+        </a>
         <form method="post" action="<?= $this->Url->build('/auth/logout') ?>">
             <?= $this->Form->hidden('_csrfToken', ['value' => $this->request->getAttribute('csrfToken')]) ?>
             <button type="submit" class="btn btn-sm btn-outline-secondary w-100">
@@ -133,10 +142,10 @@
     <div class="topbar d-flex align-items-center justify-content-between">
         <h6 class="mb-0 fw-semibold"><?= $this->fetch('title') ?></h6>
         <div class="d-flex align-items-center gap-2">
-            <span class="text-muted small">
+            <a href="<?= $this->Url->build('/profile') ?>" class="text-muted small text-decoration-none">
                 <i class="bi bi-person-circle me-1"></i>
                 <?= h($this->Identity->get('email') ?? '') ?>
-            </span>
+            </a>
         </div>
     </div>
 

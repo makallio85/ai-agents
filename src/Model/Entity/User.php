@@ -6,6 +6,27 @@ namespace App\Model\Entity;
 use Cake\Auth\DefaultPasswordHasher;
 use Cake\ORM\Entity;
 
+/**
+ * @property int $id
+ * @property int $role_id
+ * @property string $username
+ * @property string $email
+ * @property string $password
+ * @property string|null $first_name
+ * @property string|null $last_name
+ * @property string|null $phone_number
+ * @property bool $mfa_enabled
+ * @property string|null $mfa_secret
+ * @property bool $is_active
+ * @property bool $is_approved
+ * @property string $approval_state
+ * @property int|null $approved_by_user_id
+ * @property \Cake\I18n\DateTime|null $approved_at
+ * @property string $preferred_reply_mode
+ * @property \Cake\I18n\DateTime|null $last_login_at
+ * @property \Cake\I18n\DateTime $created
+ * @property \Cake\I18n\DateTime $modified
+ */
 class User extends Entity
 {
     public const APPROVAL_PENDING = 'pending';

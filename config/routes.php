@@ -68,6 +68,8 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
         $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index']);
         $builder->connect('/messaging-guests', ['controller' => 'MessagingGuests', 'action' => 'index']);
+        $builder->connect('/settings/permissions', ['controller' => 'Settings', 'action' => 'permissions']);
+        $builder->connect('/profile', ['controller' => 'Profile', 'action' => 'index']);
 
         $builder->fallbacks();
     });
@@ -133,6 +135,15 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/chat/handoff-back/{id}', ['controller' => 'Chat', 'action' => 'handoffBack'], ['_name' => 'api.v1.chat.handoff_back', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/chat/human-reply/{id}', ['controller' => 'Chat', 'action' => 'humanReply'], ['_name' => 'api.v1.chat.human_reply', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/chat/inbox', ['controller' => 'Chat', 'action' => 'inbox'], ['_name' => 'api.v1.chat.inbox']);
+
+        // Roles
+        $builder->connect('/roles', ['controller' => 'Roles', 'action' => 'index'], ['_name' => 'api.v1.roles.index']);
+        $builder->connect('/roles/update-permissions/{id}', ['controller' => 'Roles', 'action' => 'updatePermissions'], ['_method' => 'POST', '_name' => 'api.v1.roles.update_permissions', 'id' => '\d+', 'pass' => ['id']]);
+
+        // Profile
+        $builder->connect('/profile', ['controller' => 'Profile', 'action' => 'view'], ['_name' => 'api.v1.profile.view']);
+        $builder->connect('/profile/update', ['controller' => 'Profile', 'action' => 'update'], ['_method' => 'POST', '_name' => 'api.v1.profile.update']);
+        $builder->connect('/profile/change-password', ['controller' => 'Profile', 'action' => 'changePassword'], ['_method' => 'POST', '_name' => 'api.v1.profile.change_password']);
 
         // GitHub Integrations
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index'], ['_name' => 'api.v1.github_integrations.index']);

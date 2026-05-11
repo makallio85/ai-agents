@@ -262,6 +262,7 @@ var Api = (function () {
     return {
         _toSlug: _toSlug,
         url: url,
+        request: _coreRequest,
         createNamespace: createNamespace,
         auth: auth,
         agents: agents,
