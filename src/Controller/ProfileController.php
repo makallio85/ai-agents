@@ -15,6 +15,7 @@ class ProfileController extends AppController
      */
     public function index(): void
     {
+        $this->viewBuilder()->setLayout('app');
         $this->set('title', 'My Profile');
     }
 }

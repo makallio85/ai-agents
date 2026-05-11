@@ -19,6 +19,7 @@ class SettingsController extends AppController
      */
     public function permissions(): void
     {
+        $this->viewBuilder()->setLayout('app');
         $this->set('title', 'Permissions');
     }
 }
