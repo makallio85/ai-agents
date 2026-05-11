@@ -47,7 +47,7 @@ class UsersTable extends Table
 
     public function validationDefault(Validator $validator): Validator
     {
-        $validator->nonEmptyString('username')->maxLength('username', 100);
+        $validator->notEmptyString('username')->maxLength('username', 100);
         $validator->email('email')->notEmptyString('email');
         $validator->notEmptyString('password')->minLength('password', 8);
         $validator->boolean('mfa_enabled');
@@ -65,6 +65,10 @@ class UsersTable extends Table
         return $rules;
     }
 
+    /**
+     * @param SelectQuery<\App\Model\Entity\User> $query
+     * @return SelectQuery<\App\Model\Entity\User>
+     */
     public function findActive(SelectQuery $query): SelectQuery
     {
         return $query->where(['Users.is_active' => true]);

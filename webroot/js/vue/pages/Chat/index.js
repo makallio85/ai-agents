@@ -34,6 +34,7 @@
             var inputText = ref('');
             var streaming = ref(false);
             var streamBuffer = ref('');
+            var toolActivity = ref([]);   // [{label, status: 'running'|'done'}]
             var sendError = ref('');
             var loadingSessions = ref(true);
 
@@ -117,6 +118,7 @@
                 inputText.value = '';
                 streaming.value = true;
                 streamBuffer.value = '';
+                toolActivity.value = [];
 
                 // Optimistically add user message to thread for instant feedback
                 messages.value.push({
@@ -134,10 +136,26 @@
                             streamBuffer.value += event.content;
                             await nextTick();
                             scrollToBottom();
+                        } else if (event.type === 'tool_call') {
+                            // Agent is invoking a GitHub tool — show a running indicator
+                            toolActivity.value.push({ label: formatToolName(event.tool), status: 'running' });
+                            await nextTick();
+                            scrollToBottom();
+                        } else if (event.type === 'tool_result') {
+                            // Mark the matching running entry as done
+                            var idx = toolActivity.value.findIndex(function (t) {
+                                return t.status === 'running' && t.label === formatToolName(event.tool);
+                            });
+                            if (idx !== -1) {
+                                toolActivity.value[idx] = { label: formatToolName(event.tool), status: 'done' };
+                            }
+                            await nextTick();
+                            scrollToBottom();
                         } else if (event.type === 'done') {
                             // Stream complete — reload session to get persisted message
                             streaming.value = false;
                             streamBuffer.value = '';
+                            toolActivity.value = [];
                             await loadSession(activeSession.value.id);
                             await loadSessions(); // refresh title in sidebar
                             break;
@@ -148,6 +166,7 @@
                 } catch (err) {
                     streaming.value = false;
                     streamBuffer.value = '';
+                    toolActivity.value = [];
                     sendError.value = err.message || 'Failed to send message';
                     // Reload to restore consistent state (remove optimistic message).
                     // Ignore any loadSession failure so the original error stays visible.
@@ -183,6 +202,17 @@
                 return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             }
 
+            /**
+             * Converts a snake_case tool name into a readable label.
+             * e.g. "github_list_repos" → "GitHub: list repos"
+             */
+            function formatToolName(name) {
+                if (!name) return name;
+                return name
+                    .replace(/^github_/, 'GitHub: ')
+                    .replace(/_/g, ' ');
+            }
+
             // ── Init ──────────────────────────────────────────────────
 
             onMounted(function () {
@@ -199,6 +229,7 @@
                 inputText: inputText,
                 streaming: streaming,
                 streamBuffer: streamBuffer,
+                toolActivity: toolActivity,
                 sendError: sendError,
                 loadingSessions: loadingSessions,
                 messagesEl: messagesEl,

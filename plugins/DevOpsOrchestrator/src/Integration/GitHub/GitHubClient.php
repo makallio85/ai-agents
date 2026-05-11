@@ -53,7 +53,69 @@ class GitHubClient implements GitHubClientInterface
 
     public function getLabels(string $owner, string $repo): array
     {
-        return $this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/labels?per_page=100");
+        return array_values($this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/labels?per_page=100"));
+    }
+
+    public function listRepos(): array
+    {
+        return array_values($this->request('GET', "{$this->apiUrl}/user/repos?per_page=100&sort=updated"));
+    }
+
+    public function getFileContents(string $owner, string $repo, string $path): array
+    {
+        return $this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/contents/{$path}");
+    }
+
+    public function createOrUpdateFile(string $owner, string $repo, string $path, array $payload): array
+    {
+        $url = "{$this->apiUrl}/repos/{$owner}/{$repo}/contents/{$path}";
+        $response = $this->request('PUT', $url, $payload);
+        $this->log("GitHub file committed: {$path} in {$owner}/{$repo}", 'info', ['scope' => 'github']);
+        return $response;
+    }
+
+    public function createPullRequest(string $owner, string $repo, array $payload): array
+    {
+        $url = "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls";
+        $response = $this->request('POST', $url, $payload);
+        $this->log("GitHub PR created: #{$response['number']} in {$owner}/{$repo}", 'info', ['scope' => 'github']);
+        return $response;
+    }
+
+    public function commentOnIssue(string $owner, string $repo, int $issueNumber, string $body): array
+    {
+        $url = "{$this->apiUrl}/repos/{$owner}/{$repo}/issues/{$issueNumber}/comments";
+        $response = $this->request('POST', $url, ['body' => $body]);
+        $this->log("GitHub comment added to #{$issueNumber} in {$owner}/{$repo}", 'info', ['scope' => 'github']);
+        return $response;
+    }
+
+    public function closeIssue(string $owner, string $repo, int $issueNumber): array
+    {
+        $url = "{$this->apiUrl}/repos/{$owner}/{$repo}/issues/{$issueNumber}";
+        $response = $this->request('PATCH', $url, ['state' => 'closed']);
+        $this->log("GitHub issue #{$issueNumber} closed in {$owner}/{$repo}", 'info', ['scope' => 'github']);
+        return $response;
+    }
+
+    public function listPullRequests(string $owner, string $repo, string $state = 'open'): array
+    {
+        return array_values($this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls?state={$state}&per_page=50"));
+    }
+
+    public function getPullRequest(string $owner, string $repo, int $number): array
+    {
+        return $this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls/{$number}");
+    }
+
+    public function getPullRequestFiles(string $owner, string $repo, int $number): array
+    {
+        return array_values($this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls/{$number}/files?per_page=100"));
+    }
+
+    public function getPullRequestCommits(string $owner, string $repo, int $number): array
+    {
+        return array_values($this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls/{$number}/commits?per_page=100"));
     }
 
     /**
@@ -97,13 +159,28 @@ class GitHubClient implements GitHubClientInterface
         /** @var array<string, mixed>|null $data */
         $data = json_decode($rawResponse, true);
 
-        if ($statusCode === 403 || $statusCode === 429) {
-            throw new GitHubException('GitHub rate limit exceeded', $statusCode);
+        if ($statusCode === 429) {
+            $retryAfter = '';
+            foreach ($http_response_header as $header) {
+                if (stripos($header, 'Retry-After:') === 0) {
+                    $retryAfter = ' Retry after ' . trim(substr($header, 12)) . ' seconds.';
+                }
+            }
+            throw new GitHubException("GitHub API error 429: Rate limit exceeded.{$retryAfter}", $statusCode);
+        }
+
+        if ($statusCode === 403) {
+            $errorMsg = $data['message'] ?? 'Forbidden';
+            $hint = stripos($errorMsg, 'accessible') !== false || stripos($errorMsg, 'scope') !== false
+                ? ' The token is missing the required scope or repository permission.'
+                : '';
+            throw new GitHubException("GitHub API error 403: {$errorMsg}.{$hint}", $statusCode);
         }
 
         if ($statusCode >= 400) {
             $errorMsg = $data['message'] ?? 'Unknown error';
-            throw new GitHubException("GitHub API error {$statusCode}: {$errorMsg}", $statusCode);
+            $details = isset($data['errors']) ? ' Details: ' . json_encode($data['errors']) : '';
+            throw new GitHubException("GitHub API error {$statusCode}: {$errorMsg}.{$details}", $statusCode);
         }
 
         return $data ?? [];

@@ -5,6 +5,18 @@ namespace App\Model\Entity;
 
 use Cake\ORM\Entity;
 
+/**
+ * @property int $id
+ * @property int $user_id
+ * @property string $repo_owner
+ * @property string $repo_name
+ * @property string $token
+ * @property bool $is_active
+ * @property \Cake\I18n\DateTime|null $last_used_at
+ * @property \Cake\I18n\DateTime $created
+ * @property \Cake\I18n\DateTime $modified
+ * @property \App\Model\Entity\User $user
+ */
 class GithubIntegration extends Entity
 {
     protected array $_accessible = [

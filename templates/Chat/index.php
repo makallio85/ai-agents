@@ -225,6 +225,41 @@ $this->assign('title', 'Chat');
         font-size: .8rem;
         margin-bottom: .5rem;
     }
+
+    /* Tool activity log shown inside the streaming bubble */
+    .tool-activity {
+        margin-bottom: .5rem;
+    }
+    .tool-event {
+        display: flex;
+        align-items: flex-start;
+        gap: .4rem;
+        font-size: .75rem;
+        color: #6c757d;
+        padding: 2px 0;
+        line-height: 1.4;
+    }
+    .tool-event.running {
+        color: #0d6efd;
+    }
+    .tool-event.done {
+        color: #198754;
+    }
+    .tool-event .tool-icon {
+        flex-shrink: 0;
+        margin-top: 1px;
+    }
+    .tool-spinner {
+        width: 10px;
+        height: 10px;
+        border: 2px solid #0d6efd44;
+        border-top-color: #0d6efd;
+        border-radius: 50%;
+        animation: spin .6s linear infinite;
+        flex-shrink: 0;
+        margin-top: 3px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 </style>
 
 <div id="chat-app" v-cloak>
@@ -306,12 +341,27 @@ $this->assign('title', 'Chat');
                             <div class="msg-meta">{{ formatTime(msg.created) }}</div>
                         </div>
                     </div>
-                    <!-- Live streaming bubble -->
+                    <!-- Live streaming bubble (text chunks + tool activity) -->
                     <div v-if="streaming" class="msg-row assistant">
                         <div class="msg-avatar">🤖</div>
                         <div>
                             <div class="msg-bubble">
-                                {{ streamBuffer }}<span class="streaming-cursor"></span>
+                                <!-- Tool activity log -->
+                                <div v-if="toolActivity.length > 0" class="tool-activity">
+                                    <div
+                                        v-for="(t, i) in toolActivity"
+                                        :key="i"
+                                        class="tool-event"
+                                        :class="t.status"
+                                    >
+                                        <span v-if="t.status === 'running'" class="tool-spinner"></span>
+                                        <span v-else class="tool-icon">✓</span>
+                                        <span>{{ t.label }}</span>
+                                    </div>
+                                </div>
+                                <!-- Streaming text -->
+                                <template v-if="streamBuffer">{{ streamBuffer }}</template>
+                                <span class="streaming-cursor"></span>
                             </div>
                         </div>
                     </div>

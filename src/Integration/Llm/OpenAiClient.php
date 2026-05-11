@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace App\Integration\Llm;
 
+use App\Integration\Llm\Tool\ToolCall;
+use App\Integration\Llm\Tool\ToolCallResponse;
+use App\Integration\Llm\Tool\ToolDefinition;
 use RuntimeException;
 
 /**
@@ -112,6 +115,67 @@ class OpenAiClient implements LlmClientInterface
         }
 
         return new LlmResponse($assembled, null, $model, 'stop');
+    }
+
+    /**
+     * Sends messages and tool definitions to the LLM and returns either a
+     * final text response or a list of tool calls to execute.
+     *
+     * Used exclusively by AgentLoopService. Each call is non-streaming because
+     * the loop needs the full structured response (including tool_call ids)
+     * before it can dispatch tool execution.
+     *
+     * @param LlmMessage[] $messages Full conversation history including tool results from previous turns.
+     * @param ToolDefinition[] $tools Available tools offered to the LLM.
+     * @param array<string, mixed> $options Provider overrides (model, temperature, etc.).
+     */
+    public function completeWithTools(array $messages, array $tools, array $options = []): ToolCallResponse
+    {
+        $model = (string)($options['model'] ?? 'gpt-4o');
+        $payload = $this->buildPayload($messages, $model, $options, false);
+        $payload['tools'] = array_map(fn(ToolDefinition $t) => $t->toArray(), $tools);
+        $payload['tool_choice'] = 'auto';
+
+        $json = json_encode($payload);
+        if ($json === false) {
+            throw new RuntimeException('Failed to encode OpenAI tool-calling payload as JSON');
+        }
+
+        $curl = $this->createCurl();
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $json);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+
+        $body = curl_exec($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        if ($body === false || $httpCode !== 200) {
+            throw new RuntimeException("OpenAI tool-calling API error (HTTP {$httpCode}): " . ($body ?: 'empty response'));
+        }
+
+        /** @var array<string, mixed> $data */
+        $data = json_decode((string)$body, true);
+        $tokensUsed = isset($data['usage']['total_tokens']) ? (int)$data['usage']['total_tokens'] : null;
+        $finishReason = (string)($data['choices'][0]['finish_reason'] ?? 'stop');
+        $message = $data['choices'][0]['message'] ?? [];
+
+        // LLM wants to call one or more tools
+        if ($finishReason === 'tool_calls' && !empty($message['tool_calls'])) {
+            $toolCalls = [];
+            foreach ($message['tool_calls'] as $tc) {
+                $args = json_decode((string)($tc['function']['arguments'] ?? '{}'), true);
+                $toolCalls[] = new ToolCall(
+                    id: (string)($tc['id'] ?? ''),
+                    name: (string)($tc['function']['name'] ?? ''),
+                    arguments: is_array($args) ? $args : [],
+                );
+            }
+            return new ToolCallResponse('', $toolCalls, $model, $tokensUsed);
+        }
+
+        // LLM produced a final text answer
+        $content = (string)($message['content'] ?? '');
+        return new ToolCallResponse($content, [], $model, $tokensUsed);
     }
 
     /**

@@ -10,5 +10,4 @@ parameters:
 		- vendor/
 		- tmp/
 		- logs/
-	ignoreErrors:
-		- '#Offset .+ does not exist on array#'
+

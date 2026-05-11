@@ -20,12 +20,16 @@ class GithubIntegrationsTable extends Table
 
     public function validationDefault(Validator $validator): Validator
     {
-        $validator->nonEmptyString('repo_owner')->maxLength('repo_owner', 150);
-        $validator->nonEmptyString('repo_name')->maxLength('repo_name', 150);
+        $validator->notEmptyString('repo_owner')->maxLength('repo_owner', 150);
+        $validator->notEmptyString('repo_name')->maxLength('repo_name', 150);
         $validator->notEmptyString('token');
         return $validator;
     }
 
+    /**
+     * @param SelectQuery<\App\Model\Entity\GithubIntegration> $query
+     * @return SelectQuery<\App\Model\Entity\GithubIntegration>
+     */
     public function findActiveByUser(SelectQuery $query, int $userId): SelectQuery
     {
         return $query->where([
