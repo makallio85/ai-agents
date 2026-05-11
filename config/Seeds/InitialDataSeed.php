@@ -21,60 +21,102 @@ class InitialDataSeed extends BaseSeed
     public function run(): void
     {
         $now = date('Y-m-d H:i:s');
+        $adapter = $this->getAdapter();
 
-        // Roles
-        $rolesTable = $this->table('roles');
-        $rolesTable->insert([
-            ['name' => 'Administrator', 'slug' => 'administrator', 'description' => 'Full infrastructure and system access', 'created' => $now, 'modified' => $now],
-            ['name' => 'Superuser', 'slug' => 'superuser', 'description' => 'Full operational access to all agents and workflows', 'created' => $now, 'modified' => $now],
-            ['name' => 'User', 'slug' => 'user', 'description' => 'Limited operational access', 'created' => $now, 'modified' => $now],
-        ])->save();
+        // Roles — skip if already seeded
+        $existingRoles = $adapter->fetchAll("SELECT slug FROM roles WHERE slug IN ('administrator', 'superuser', 'user')");
+        $existingSlugs = array_column($existingRoles, 'slug');
 
-        // Permissions for Administrator (role_id=1)
+        $rolesToInsert = [];
+        foreach ([
+            ['name' => 'Administrator', 'slug' => 'administrator', 'description' => 'Full infrastructure and system access'],
+            ['name' => 'Superuser',     'slug' => 'superuser',     'description' => 'Full operational access to all agents and workflows'],
+            ['name' => 'User',          'slug' => 'user',          'description' => 'Limited operational access'],
+        ] as $role) {
+            if (!in_array($role['slug'], $existingSlugs, true)) {
+                $rolesToInsert[] = array_merge($role, ['created' => $now, 'modified' => $now]);
+            }
+        }
+
+        if (!empty($rolesToInsert)) {
+            $this->table('roles')->insert($rolesToInsert)->saveData();
+        }
+
+        // Look up actual IDs by slug (never assume auto-increment values)
+        $rows = $adapter->fetchAll("SELECT id, slug FROM roles WHERE slug IN ('administrator', 'superuser', 'user')");
+        $roleIds = [];
+        foreach ($rows as $row) {
+            $roleIds[$row['slug']] = (int)$row['id'];
+        }
+
+        // Permissions — skip modules that already have entries for these roles
         $modules = ['agents', 'conversations', 'users', 'roles', 'labels', 'github_integrations', 'execution_history', 'agent_logs', 'prompt_versions'];
         $actions = ['read', 'create', 'update', 'delete'];
+
+        $existingPerms = $adapter->fetchAll(
+            "SELECT role_id, module, action FROM permissions WHERE role_id IN (" . implode(',', array_values($roleIds)) . ")"
+        );
+        $permSet = [];
+        foreach ($existingPerms as $p) {
+            $permSet[$p['role_id'] . '|' . $p['module'] . '|' . $p['action']] = true;
+        }
+
         $permissionsData = [];
         foreach ($modules as $module) {
             foreach ($actions as $action) {
-                $permissionsData[] = ['role_id' => 1, 'module' => $module, 'action' => $action, 'created' => $now, 'modified' => $now];
-                $permissionsData[] = ['role_id' => 2, 'module' => $module, 'action' => $action, 'created' => $now, 'modified' => $now];
+                foreach (['administrator', 'superuser'] as $slug) {
+                    $roleId = $roleIds[$slug] ?? null;
+                    if ($roleId && !isset($permSet[$roleId . '|' . $module . '|' . $action])) {
+                        $permissionsData[] = ['role_id' => $roleId, 'module' => $module, 'action' => $action, 'created' => $now, 'modified' => $now];
+                    }
+                }
             }
         }
+
         // User role — read only on agents and conversations
-        $permissionsData[] = ['role_id' => 3, 'module' => 'agents', 'action' => 'read', 'created' => $now, 'modified' => $now];
-        $permissionsData[] = ['role_id' => 3, 'module' => 'conversations', 'action' => 'read', 'created' => $now, 'modified' => $now];
-        $permissionsData[] = ['role_id' => 3, 'module' => 'conversations', 'action' => 'create', 'created' => $now, 'modified' => $now];
+        $userId = $roleIds['user'] ?? null;
+        if ($userId) {
+            foreach ([['agents', 'read'], ['conversations', 'read'], ['conversations', 'create']] as [$module, $action]) {
+                if (!isset($permSet[$userId . '|' . $module . '|' . $action])) {
+                    $permissionsData[] = ['role_id' => $userId, 'module' => $module, 'action' => $action, 'created' => $now, 'modified' => $now];
+                }
+            }
+        }
 
-        $permissionsTable = $this->table('permissions');
-        $permissionsTable->insert($permissionsData)->save();
+        if (!empty($permissionsData)) {
+            $this->table('permissions')->insert($permissionsData)->saveData();
+        }
 
-        // Labels
-        $labelsTable = $this->table('labels');
-        $labelsTable->insert([
-            [
-                'name' => 'Bug',
-                'slug' => 'bug',
-                'color' => '#d73a4a',
+        // Labels — skip if already present
+        $existingLabels = $adapter->fetchAll("SELECT slug FROM labels WHERE slug IN ('bug', 'enhancement')");
+        $existingLabelSlugs = array_column($existingLabels, 'slug');
+
+        $labelsToInsert = [];
+        if (!in_array('bug', $existingLabelSlugs, true)) {
+            $labelsToInsert[] = [
+                'name' => 'Bug', 'slug' => 'bug', 'color' => '#d73a4a',
                 'description' => 'Something is not working',
                 'keywords' => json_encode(['bug', 'error', 'fix', 'broken', 'crash', 'issue', 'fail', 'not working']),
-                'created' => $now,
-                'modified' => $now,
-            ],
-            [
-                'name' => 'Enhancement',
-                'slug' => 'enhancement',
-                'color' => '#a2eeef',
+                'created' => $now, 'modified' => $now,
+            ];
+        }
+        if (!in_array('enhancement', $existingLabelSlugs, true)) {
+            $labelsToInsert[] = [
+                'name' => 'Enhancement', 'slug' => 'enhancement', 'color' => '#a2eeef',
                 'description' => 'New feature or request',
                 'keywords' => json_encode(['feature', 'enhancement', 'improve', 'add', 'new', 'request', 'implement', 'support']),
-                'created' => $now,
-                'modified' => $now,
-            ],
-        ])->save();
+                'created' => $now, 'modified' => $now,
+            ];
+        }
 
-        // DevOps Orchestrator Agent
-        $agentsTable = $this->table('agents');
-        $agentsTable->insert([
-            [
+        if (!empty($labelsToInsert)) {
+            $this->table('labels')->insert($labelsToInsert)->saveData();
+        }
+
+        // DevOps Orchestrator Agent — skip if already present
+        $existingAgent = $adapter->fetchAll("SELECT id FROM agents WHERE slug = 'devops-orchestrator'");
+        if (empty($existingAgent)) {
+            $this->table('agents')->insert([[
                 'name' => 'DevOps Orchestrator',
                 'slug' => 'devops-orchestrator',
                 'plugin' => 'DevOpsOrchestrator',
@@ -86,7 +128,7 @@ class InitialDataSeed extends BaseSeed
                 'config' => null,
                 'created' => $now,
                 'modified' => $now,
-            ],
-        ])->save();
+            ]])->saveData();
+        }
     }
 }
