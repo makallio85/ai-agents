@@ -420,8 +420,11 @@ return [
      * To use database sessions, load the SQL file located at config/schema/sessions.sql
      */
     'Session' => [
-        'defaults' => 'php',
+        'defaults' => 'database',
         'timeout' => 60,
+        'handler' => [
+            'engine' => 'DatabaseSession',
+        ],
         'ini' => [
             'session.cookie_lifetime' => 3600,
             'session.gc_maxlifetime' => 3600,
