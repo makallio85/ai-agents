@@ -9,6 +9,8 @@ use Migrations\BaseSeed;
  * Run once on a fresh install after InitialDataSeed has been executed.
  * Skips insertion if an admin user already exists to make it safe to re-run.
  *
+ * Run with: bin/cake seeds run AdminUserSeed
+ *
  * Default credentials — change the password immediately after first login:
  *   Email:    admin@ai-agents.local
  *   Password: Admin123!

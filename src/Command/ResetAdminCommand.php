@@ -63,7 +63,7 @@ class ResetAdminCommand extends Command
 
         if ($admin === null) {
             $io->error(sprintf(
-                'Admin user with email "%s" not found. Run "bin/cake migrations seed --seed AdminUserSeed" first.',
+                'Admin user with email "%s" not found. Run "bin/cake seeds run AdminUserSeed" first.',
                 self::ADMIN_EMAIL
             ));
 
