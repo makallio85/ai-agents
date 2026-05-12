@@ -135,6 +135,10 @@
                 <i class="bi bi-box-arrow-left"></i> Sign out
             </button>
         </form>
+        <div class="mt-2 pt-2 border-top border-secondary" style="font-size:.68rem; color:#6c757d; line-height:1.4;">
+            <i class="bi bi-git me-1"></i><code style="font-size:.68rem; color:#8b949e;"><?= h($gitHash) ?></code>
+            <div class="text-truncate" title="<?= h($gitMessage) ?>"><?= h($gitMessage) ?></div>
+        </div>
     </div>
 </nav>
 
