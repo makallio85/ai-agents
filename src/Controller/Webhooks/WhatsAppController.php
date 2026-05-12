@@ -104,11 +104,9 @@ class WhatsAppController extends AppController
         }
 
         $event = $this->persistEvent($payload, $phoneNumberId, $rawBody, signatureValid: true);
-        if ($event !== null) {
-            QueueManager::push(ProcessInboundMessageJob::class, [
-                'inbound_event_id' => $event->id,
-            ]);
-        }
+        QueueManager::push(ProcessInboundMessageJob::class, [
+            'inbound_event_id' => $event->id,
+        ]);
 
         return $this->response->withStatus(200)->withStringBody('ok');
     }
@@ -137,7 +135,7 @@ class WhatsAppController extends AppController
         string $rawBody,
         bool $signatureValid,
         ?string $errorMessage = null,
-    ): ?InboundEvent {
+    ): InboundEvent {
         $events = TableRegistry::getTableLocator()->get('InboundEvents');
         $eventId = $this->deriveEventId($payload, $rawBody);
 

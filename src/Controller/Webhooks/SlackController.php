@@ -81,11 +81,9 @@ class SlackController extends AppController
         }
 
         $event = $this->persistEvent($payload, $appId, $rawBody, signatureValid: true);
-        if ($event !== null) {
-            QueueManager::push(ProcessInboundMessageJob::class, [
-                'inbound_event_id' => $event->id,
-            ]);
-        }
+        QueueManager::push(ProcessInboundMessageJob::class, [
+            'inbound_event_id' => $event->id,
+        ]);
 
         // Slack expects a 2xx within 3s or it retries.
         return $this->response->withStatus(200)->withStringBody('ok');
@@ -100,7 +98,7 @@ class SlackController extends AppController
         string $rawBody,
         bool $signatureValid,
         ?string $errorMessage = null,
-    ): ?InboundEvent {
+    ): InboundEvent {
         $events = TableRegistry::getTableLocator()->get('InboundEvents');
         $eventId = $this->deriveEventId($payload, $rawBody);
 

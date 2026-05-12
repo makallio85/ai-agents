@@ -156,22 +156,25 @@ return function (RouteBuilder $routes): void {
     /*
      * Webhook endpoints — third-party providers (Meta, Mailgun, ...) post here.
      * No authentication, no CSRF. The signature header inside each request is the auth.
+     *
+     * Uses prefix() instead of scope() so CakePHP resolves controller classes from
+     * src/Controller/Webhooks/ automatically (scope() does not set the controller namespace).
      */
-    $routes->scope('/webhooks', function (RouteBuilder $builder): void {
+    $routes->prefix('Webhooks', ['path' => '/webhooks'], function (RouteBuilder $builder): void {
         $builder->connect(
             '/whatsapp',
-            ['controller' => 'Webhooks/WhatsApp', 'action' => 'verify'],
+            ['controller' => 'WhatsApp', 'action' => 'verify'],
             ['_method' => 'GET', '_name' => 'webhooks.whatsapp.verify'],
         );
         $builder->connect(
             '/whatsapp',
-            ['controller' => 'Webhooks/WhatsApp', 'action' => 'receive'],
+            ['controller' => 'WhatsApp', 'action' => 'receive'],
             ['_method' => 'POST', '_name' => 'webhooks.whatsapp.receive'],
         );
         // Slack — one endpoint handles url_verification challenge and event_callback.
         $builder->connect(
             '/slack',
-            ['controller' => 'Webhooks/Slack', 'action' => 'receive'],
+            ['controller' => 'Slack', 'action' => 'receive'],
             ['_method' => 'POST', '_name' => 'webhooks.slack.receive'],
         );
     });
