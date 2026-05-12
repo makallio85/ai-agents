@@ -419,15 +419,12 @@ return [
      *
      * To use database sessions, load the SQL file located at config/schema/sessions.sql
      */
-    // Sessions use PHP's native Redis handler (configured in docker/php.ini).
-    // Redis handles concurrent requests atomically, avoiding the MariaDB
-    // error 1020 that occurs when multiple simultaneous API calls from the
-    // same browser all try to UPDATE the same sessions row. The phpredis
-    // extension is installed in the Docker image.
-    // Local XAMPP dev continues to use PHP's default file-based sessions.
     'Session' => [
-        'defaults' => 'php',
+        'defaults' => 'database',
         'timeout' => 60,
+        'handler' => [
+            'engine' => 'App\Http\Session\ResilientDatabaseSession',
+        ],
         'ini' => [
             'session.cookie_lifetime' => 3600,
             'session.gc_maxlifetime' => 3600,
