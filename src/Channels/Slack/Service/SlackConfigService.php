@@ -149,23 +149,23 @@ class SlackConfigService
         /** @var \App\Model\Entity\AgentContext|null $existing */
         $existing = $contexts->find()->where(['agent_id' => $agentId, 'context_key' => $key])->first();
         if ($existing !== null) {
-            Log::debug("SlackConfigService::upsert UPDATE agent_id={$agentId} key={$key}");
+            Log::error("SlackConfigService::upsert UPDATE agent_id={$agentId} key={$key}");
             $existing->value = $stored;
             /** @var \App\Model\Entity\AgentContext $saved */
             $saved = $contexts->saveOrFail($existing);
-            Log::debug('SlackConfigService::upsert UPDATE done id=' . $saved->id);
+            Log::error('SlackConfigService::upsert UPDATE done id=' . $saved->id);
             return;
         }
-        Log::debug("SlackConfigService::upsert INSERT agent_id={$agentId} key={$key}");
+        Log::error("SlackConfigService::upsert INSERT agent_id={$agentId} key={$key}");
         $entity = $contexts->newEntity([
             'agent_id' => $agentId,
             'context_key' => $key,
             'value' => $stored,
         ]);
-        Log::debug('SlackConfigService::upsert entity errors: ' . json_encode($entity->getErrors()));
+        Log::error('SlackConfigService::upsert entity errors: ' . json_encode($entity->getErrors()));
         /** @var \App\Model\Entity\AgentContext $saved */
         $saved = $contexts->saveOrFail($entity);
-        Log::debug('SlackConfigService::upsert INSERT done id=' . $saved->id);
+        Log::error('SlackConfigService::upsert INSERT done id=' . $saved->id);
     }
 
     private function encryptionKey(): string
