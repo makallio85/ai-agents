@@ -156,7 +156,7 @@ class WhatsAppConfigService
         $existing = $contexts->find()->where(['agent_id' => $agentId, 'context_key' => $key])->first();
         if ($existing !== null) {
             $existing->value = $stored;
-            $contexts->save($existing);
+            $contexts->saveOrFail($existing);
             return;
         }
         $entity = $contexts->newEntity([
@@ -164,7 +164,7 @@ class WhatsAppConfigService
             'context_key' => $key,
             'value' => $stored,
         ]);
-        $contexts->save($entity);
+        $contexts->saveOrFail($entity);
     }
 
     private function encryptionKey(): string
