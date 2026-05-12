@@ -51,7 +51,7 @@ class WhatsAppConfigService
         /** @var AgentContext|null $hit */
         $hit = $agentContexts->find()
             ->where([
-                'key' => self::KEY_PHONE_NUMBER_ID,
+                'AgentContexts.key' => self::KEY_PHONE_NUMBER_ID,
                 'value' => $phoneNumberId,
             ])
             ->first();
@@ -138,7 +138,7 @@ class WhatsAppConfigService
     {
         $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
         $rows = $contexts->find()
-            ->where(['agent_id' => $agentId, 'key LIKE' => 'whatsapp.%'])
+            ->where(['agent_id' => $agentId, 'AgentContexts.key LIKE' => 'whatsapp.%'])
             ->all();
         $values = [];
         foreach ($rows as $row) {
@@ -151,7 +151,7 @@ class WhatsAppConfigService
     {
         $stored = in_array($key, self::ENCRYPTED_KEYS, true) ? $this->encrypt($value) : $value;
         $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
-        $existing = $contexts->find()->where(['agent_id' => $agentId, 'key' => $key])->first();
+        $existing = $contexts->find()->where(['agent_id' => $agentId, 'AgentContexts.key' => $key])->first();
         if ($existing !== null) {
             $existing->value = $stored;
             $contexts->save($existing);

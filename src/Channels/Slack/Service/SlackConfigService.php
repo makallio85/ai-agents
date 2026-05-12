@@ -51,7 +51,7 @@ class SlackConfigService
         $agentContexts = TableRegistry::getTableLocator()->get('AgentContexts');
         /** @var AgentContext|null $hit */
         $hit = $agentContexts->find()
-            ->where(['key' => self::KEY_APP_ID, 'value' => $appId])
+            ->where(['AgentContexts.key' => self::KEY_APP_ID, 'value' => $appId])
             ->first();
         if ($hit === null) {
             return null;
@@ -131,7 +131,7 @@ class SlackConfigService
     {
         $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
         $rows = $contexts->find()
-            ->where(['agent_id' => $agentId, 'key LIKE' => 'slack.%'])
+            ->where(['agent_id' => $agentId, 'AgentContexts.key LIKE' => 'slack.%'])
             ->all();
         $values = [];
         foreach ($rows as $row) {
@@ -144,7 +144,7 @@ class SlackConfigService
     {
         $stored = in_array($key, self::ENCRYPTED_KEYS, true) ? $this->encrypt($value) : $value;
         $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
-        $existing = $contexts->find()->where(['agent_id' => $agentId, 'key' => $key])->first();
+        $existing = $contexts->find()->where(['agent_id' => $agentId, 'AgentContexts.key' => $key])->first();
         if ($existing !== null) {
             $existing->value = $stored;
             $contexts->save($existing);
