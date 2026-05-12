@@ -14,6 +14,13 @@ Project-specific architectural rules and conventions for Claude Code.
 - `phinx.yml` — migration tool config
 - `phpstan.neon` — static analysis config
 
+## Development workflow (temporary — until further notice)
+
+- ALWAYS commit directly to `master` — no feature or bugfix branches during this phase
+- ALWAYS push to remote after every commit
+- ALWAYS make sure PHPUnit and PHPStan pass before committing
+- Branching rules in the global CLAUDE.md are suspended for this project until further notice
+
 ## Testing
 
 Tests live in `tests/TestCase/`. Fixtures are in `tests/Fixture/`. The test database is configured separately from the development database (see `phpunit.xml.dist`).
