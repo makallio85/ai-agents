@@ -20,6 +20,15 @@ fi
 
 cd "$APP_DIR"
 
+# Write git commit info so the PHP app can display it without needing
+# access to .git (which may be owned by a different user than PHP-FPM).
+GIT_HASH=$(git log -1 --format=%h)
+GIT_MSG=$(git log -1 --format=%s)
+cat > config/git_version.php <<EOF
+<?php
+return ['hash' => '${GIT_HASH}', 'message' => '${GIT_MSG}'];
+EOF
+
 docker compose -f docker-compose.prod.yml down --remove-orphans || true
 
 docker compose -f docker-compose.prod.yml up -d --build
@@ -56,5 +65,12 @@ docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations seed -
 docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations seed --seed AdminUserSeed
 
 docker compose -f docker-compose.prod.yml exec -T app bin/cake cache clear_all
+
+# Fix ownership of tmp/ so PHP-FPM (www-data) can read and write cache files.
+# Without this, schema cache files created by a root-owned deploy remain
+# unreadable/unwritable by www-data, causing stale schema to persist and
+# save() to silently fail.
+docker compose -f docker-compose.prod.yml exec -T --user root app \
+  chown -R www-data:www-data /var/www/html/tmp/
 
 echo "Deployment completed"

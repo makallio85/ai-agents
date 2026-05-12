@@ -4,50 +4,40 @@ declare(strict_types=1);
 namespace App\Service;
 
 /**
- * Reads the current git commit hash and subject from the repository.
+ * Reads the current git commit hash and subject line for display in the UI.
  *
- * Used by the UI layout to display the deployed code version so operators
- * can quickly verify which commit is running without accessing the server.
+ * Git info is written to config/git_version.php by the deploy script at
+ * deploy time (while the deploying user has access to .git). Reading a
+ * pre-generated file avoids runtime exec() calls and .git permission issues
+ * when PHP-FPM runs as a different user than the repository owner.
  *
- * Falls back to placeholder strings when git is unavailable (e.g. CI
- * containers that run without the .git directory) or when exec() is
- * disabled in PHP configuration.
+ * Falls back to 'unknown' / '—' when the file is absent (local dev without
+ * a deploy, or first run before the file is generated).
  */
 class GitInfoService
 {
+    private const VERSION_FILE = CONFIG . 'git_version.php';
+
     /**
-     * Returns ['hash' => '...', 'message' => '...'] for the current HEAD commit.
+     * Returns ['hash' => '...', 'message' => '...'] for the deployed commit.
      *
      * @return array{hash: string, message: string}
      */
     public function head(): array
     {
-        if (!$this->execEnabled()) {
-            return ['hash' => 'unknown', 'message' => 'git not available'];
+        if (!file_exists(self::VERSION_FILE)) {
+            return ['hash' => 'unknown', 'message' => '—'];
         }
 
-        $hash = $this->run('git log -1 --format=%h 2>/dev/null');
-        $message = $this->run('git log -1 --format=%s 2>/dev/null');
+        $info = include self::VERSION_FILE;
+
+        if (!is_array($info)) {
+            return ['hash' => 'unknown', 'message' => '—'];
+        }
 
         return [
-            'hash'    => $hash !== '' ? $hash : 'unknown',
-            'message' => $message !== '' ? $message : '—',
+            'hash'    => (string)($info['hash'] ?? 'unknown'),
+            'message' => (string)($info['message'] ?? '—'),
         ];
-    }
-
-    private function run(string $cmd): string
-    {
-        $output = null;
-        @exec($cmd, $output);
-        return trim(implode('', (array)$output));
-    }
-
-    private function execEnabled(): bool
-    {
-        if (!function_exists('exec')) {
-            return false;
-        }
-        $disabled = (string)ini_get('disable_functions');
-        return !in_array('exec', array_map('trim', explode(',', $disabled)), true);
     }
 }

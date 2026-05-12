@@ -13,6 +13,15 @@ class AppController extends BaseController
     {
         parent::initialize();
         $this->viewBuilder()->setClassName('Json');
+
+        // Release the session write-lock immediately after auth middleware has
+        // already read the identity into the request. API routes never write
+        // session data, but PHP would still UPDATE the sessions row at the end
+        // of every request. When the frontend fires several concurrent calls
+        // (e.g. on page load) they all race to UPDATE the same session row,
+        // triggering MariaDB error 1020. Closing the session early is safe
+        // because auth identity lives in the request attribute, not the session.
+        $this->request->getSession()->close();
     }
 
     /**
