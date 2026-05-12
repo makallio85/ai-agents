@@ -44,9 +44,7 @@ class MfaServiceTest extends TestCase
             ->method('send')
             ->with('+358501234567', $this->stringContains('verification code'));
 
-        // We can't call sendToken directly without DB in this unit test
-        // so we just verify the SMS mock expectation setup is correct
-        $this->assertInstanceOf(MfaService::class, $this->service);
+        $this->service->sendToken($user);
     }
 
     public function testSendTokenThrowsWhenNoPhoneNumber(): void
