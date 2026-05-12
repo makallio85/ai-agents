@@ -51,7 +51,7 @@ class WhatsAppConfigService
         /** @var AgentContext|null $hit */
         $hit = $agentContexts->find()
             ->where([
-                'AgentContexts.key' => self::KEY_PHONE_NUMBER_ID,
+                'context_key' => self::KEY_PHONE_NUMBER_ID,
                 'value' => $phoneNumberId,
             ])
             ->first();
@@ -108,10 +108,10 @@ class WhatsAppConfigService
     {
         $values = [];
         foreach (($agent->agent_contexts ?? []) as $ctx) {
-            if (!str_starts_with((string)$ctx->key, 'whatsapp.')) {
+            if (!str_starts_with((string)$ctx->context_key, 'whatsapp.')) {
                 continue;
             }
-            $values[$ctx->key] = $ctx->value;
+            $values[$ctx->context_key] = $ctx->value;
         }
         $appSecret = (string)Configure::read('Channels.whatsapp.appSecret', '');
         if (
@@ -138,11 +138,12 @@ class WhatsAppConfigService
     {
         $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
         $rows = $contexts->find()
-            ->where(['agent_id' => $agentId, 'AgentContexts.key LIKE' => 'whatsapp.%'])
+            ->where(['agent_id' => $agentId, 'context_key LIKE' => 'whatsapp.%'])
             ->all();
         $values = [];
         foreach ($rows as $row) {
-            $values[(string)$row->key] = (string)$row->value;
+            /** @var \App\Model\Entity\AgentContext $row */
+            $values[(string)$row->context_key] = (string)$row->value;
         }
         return $values;
     }
@@ -151,7 +152,8 @@ class WhatsAppConfigService
     {
         $stored = in_array($key, self::ENCRYPTED_KEYS, true) ? $this->encrypt($value) : $value;
         $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
-        $existing = $contexts->find()->where(['agent_id' => $agentId, 'AgentContexts.key' => $key])->first();
+        /** @var \App\Model\Entity\AgentContext|null $existing */
+        $existing = $contexts->find()->where(['agent_id' => $agentId, 'context_key' => $key])->first();
         if ($existing !== null) {
             $existing->value = $stored;
             $contexts->save($existing);
@@ -159,7 +161,7 @@ class WhatsAppConfigService
         }
         $entity = $contexts->newEntity([
             'agent_id' => $agentId,
-            'key' => $key,
+            'context_key' => $key,
             'value' => $stored,
         ]);
         $contexts->save($entity);

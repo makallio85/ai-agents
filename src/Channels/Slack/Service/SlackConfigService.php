@@ -51,7 +51,7 @@ class SlackConfigService
         $agentContexts = TableRegistry::getTableLocator()->get('AgentContexts');
         /** @var AgentContext|null $hit */
         $hit = $agentContexts->find()
-            ->where(['AgentContexts.key' => self::KEY_APP_ID, 'value' => $appId])
+            ->where(['context_key' => self::KEY_APP_ID, 'value' => $appId])
             ->first();
         if ($hit === null) {
             return null;
@@ -102,10 +102,10 @@ class SlackConfigService
     {
         $values = [];
         foreach (($agent->agent_contexts ?? []) as $ctx) {
-            if (!str_starts_with((string)$ctx->key, 'slack.')) {
+            if (!str_starts_with((string)$ctx->context_key, 'slack.')) {
                 continue;
             }
-            $values[$ctx->key] = $ctx->value;
+            $values[$ctx->context_key] = $ctx->value;
         }
         if (
             empty($values[self::KEY_APP_ID])
@@ -131,11 +131,12 @@ class SlackConfigService
     {
         $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
         $rows = $contexts->find()
-            ->where(['agent_id' => $agentId, 'AgentContexts.key LIKE' => 'slack.%'])
+            ->where(['agent_id' => $agentId, 'context_key LIKE' => 'slack.%'])
             ->all();
         $values = [];
         foreach ($rows as $row) {
-            $values[(string)$row->key] = (string)$row->value;
+            /** @var \App\Model\Entity\AgentContext $row */
+            $values[(string)$row->context_key] = (string)$row->value;
         }
         return $values;
     }
@@ -144,7 +145,8 @@ class SlackConfigService
     {
         $stored = in_array($key, self::ENCRYPTED_KEYS, true) ? $this->encrypt($value) : $value;
         $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
-        $existing = $contexts->find()->where(['agent_id' => $agentId, 'AgentContexts.key' => $key])->first();
+        /** @var \App\Model\Entity\AgentContext|null $existing */
+        $existing = $contexts->find()->where(['agent_id' => $agentId, 'context_key' => $key])->first();
         if ($existing !== null) {
             $existing->value = $stored;
             $contexts->save($existing);
@@ -152,7 +154,7 @@ class SlackConfigService
         }
         $entity = $contexts->newEntity([
             'agent_id' => $agentId,
-            'key' => $key,
+            'context_key' => $key,
             'value' => $stored,
         ]);
         $contexts->save($entity);

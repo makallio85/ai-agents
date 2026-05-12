@@ -91,7 +91,7 @@ class LlmServiceTest extends TestCase
 
     public function testCompleteInjectsAgentContextIntoSystemPrompt(): void
     {
-        $ctx = new AgentContext(['key' => 'repo', 'value' => 'my-org/my-repo']);
+        $ctx = new AgentContext(['context_key' => 'repo', 'value' => 'my-org/my-repo']);
         $agent = new Agent([
             'id' => 1,
             'name' => 'TestAgent',

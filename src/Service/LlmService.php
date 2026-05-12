@@ -167,7 +167,7 @@ class LlmService
         if (!empty($agent->agent_contexts)) {
             $contextLines = [];
             foreach ($agent->agent_contexts as $ctx) {
-                $contextLines[] = "{$ctx->key}: {$ctx->value}";
+                $contextLines[] = "{$ctx->context_key}: {$ctx->value}";
             }
             $systemParts[] = "Agent context:\n" . implode("\n", $contextLines);
         }

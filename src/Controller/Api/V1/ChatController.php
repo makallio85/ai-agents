@@ -580,10 +580,10 @@ class ChatController extends AppController
             $contextLines = [];
             foreach ($agent->agent_contexts as $ctx) {
                 // Never leak the github_token into the system prompt
-                if ($ctx->key === 'github_token') {
+                if ($ctx->context_key === 'github_token') {
                     continue;
                 }
-                $contextLines[] = "{$ctx->key}: {$ctx->value}";
+                $contextLines[] = "{$ctx->context_key}: {$ctx->value}";
             }
             if (!empty($contextLines)) {
                 $systemParts[] = "Agent context:\n" . implode("\n", $contextLines);

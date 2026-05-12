@@ -15,7 +15,7 @@ use Cake\ORM\Entity;
  *
  * @property int $id
  * @property int $agent_id
- * @property string $key
+ * @property string $context_key
  * @property string $value
  * @property \Cake\I18n\DateTime $created
  * @property \Cake\I18n\DateTime $modified
@@ -26,7 +26,7 @@ class AgentContext extends Entity
     /** @var array<string, bool> */
     protected array $_accessible = [
         'agent_id' => true,
-        'key' => true,
+        'context_key' => true,
         'value' => true,
     ];
 }
