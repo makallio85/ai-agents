@@ -50,6 +50,11 @@ RUN chown -R www-data:www-data /var/www/html/tmp /var/www/html/logs \
 # Copy PHP ini
 COPY docker/php.ini /usr/local/etc/php/conf.d/app.ini
 
+# Entrypoint fixes bind-mount ownership before PHP-FPM starts.
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 9000
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["php-fpm"]

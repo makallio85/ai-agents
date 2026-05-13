@@ -31,15 +31,9 @@ EOF
 
 docker compose -f docker-compose.prod.yml down --remove-orphans || true
 
-# Fix ownership on the host before the container starts so PHP-FPM
-# (www-data, uid=33 in the Debian-based image) can write to logs/ and
-# tmp/cache/ from the very first request. The chown at the end of this
-# script runs too late — PHP-FPM has already started and created files
-# as root by then.
-chown -R 33:33 "$APP_DIR/logs" "$APP_DIR/tmp" 2>/dev/null || true
-
 docker compose -f docker-compose.prod.yml up -d --build
 
+# composer install writes to vendor/ which is owned by root — run as root.
 docker compose -f docker-compose.prod.yml exec -T app composer install --no-dev --optimize-autoloader
 
 # Wait for MariaDB to be healthy before running migrations.
@@ -56,34 +50,26 @@ for i in $(seq 1 30); do
     sleep 2
 done
 
-# Run app migrations
-docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations migrate
+# Run migrations and seeds as www-data so any files they touch stay
+# writable by PHP-FPM (which also runs as www-data).
+docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake migrations migrate
 
-# Run plugin migrations (discovers any plugin that ships its own Migrations folder)
 for plugin_dir in "$APP_DIR"/plugins/*/; do
     plugin_name=$(basename "$plugin_dir")
     if [ -d "${plugin_dir}config/Migrations" ]; then
         echo "Running migrations for plugin: $plugin_name"
-        docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations migrate --plugin "$plugin_name"
+        docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake migrations migrate --plugin "$plugin_name"
     fi
 done
 
-# cakephp/migrations v5 uses positional arguments: `seeds run <Name>`
-docker compose -f docker-compose.prod.yml exec -T app bin/cake seeds run InitialDataSeed
-docker compose -f docker-compose.prod.yml exec -T app bin/cake seeds run AdminUserSeed
+docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake seeds run InitialDataSeed
+docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake seeds run AdminUserSeed
 
-docker compose -f docker-compose.prod.yml exec -T app bin/cake cache clear_all
-
-# Fix ownership of tmp/ and logs/ so PHP-FPM (www-data) can read and write
-# cache and log files. Without this, files created by a root-owned deploy
-# remain unreadable/unwritable by www-data.
-docker compose -f docker-compose.prod.yml exec -T --user root app \
-  chown -R www-data:www-data /var/www/html/tmp/ /var/www/html/logs/
+# Clear cache as www-data so the fresh cache files are writable by PHP-FPM.
+docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake cache clear_all
 
 # Gracefully restart PHP-FPM to clear opcache so updated PHP files are
-# picked up immediately. Without this, opcache may serve stale bytecode
-# compiled from the previous deploy's source files.
-docker compose -f docker-compose.prod.yml exec -T app \
-  kill -USR2 1 || true
+# picked up immediately.
+docker compose -f docker-compose.prod.yml exec -T app kill -USR2 1 || true
 
 echo "Deployment completed"
