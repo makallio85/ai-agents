@@ -50,22 +50,22 @@ for i in $(seq 1 30); do
     sleep 2
 done
 
-# Run migrations and seeds as www-data so any files they touch stay
-# writable by PHP-FPM (which also runs as www-data).
-docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake migrations migrate
+# Migrations run as root — they write schema-dump-default.lock back into
+# config/Migrations/ which is part of the root-owned source tree.
+docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations migrate
 
 for plugin_dir in "$APP_DIR"/plugins/*/; do
     plugin_name=$(basename "$plugin_dir")
     if [ -d "${plugin_dir}config/Migrations" ]; then
         echo "Running migrations for plugin: $plugin_name"
-        docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake migrations migrate --plugin "$plugin_name"
+        docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations migrate --plugin "$plugin_name"
     fi
 done
 
+# Seeds and cache clear run as www-data — they write to tmp/ and logs/
+# which must stay writable by PHP-FPM.
 docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake seeds run InitialDataSeed
 docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake seeds run AdminUserSeed
-
-# Clear cache as www-data so the fresh cache files are writable by PHP-FPM.
 docker compose -f docker-compose.prod.yml exec -T --user www-data app bin/cake cache clear_all
 
 # Gracefully restart PHP-FPM to clear opcache so updated PHP files are
