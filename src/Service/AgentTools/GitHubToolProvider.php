@@ -17,6 +17,9 @@ use DevOpsOrchestrator\Integration\GitHub\GitHubClientInterface;
  *
  * The GitHub token is held by the injected GitHubClientInterface, so this
  * class never handles credentials directly.
+ *
+ * Write tools (create_or_update_file, create_pull_request) are intentionally
+ * absent — the bot is read-only for issue management and code navigation.
  */
 class GitHubToolProvider
 {
@@ -53,23 +56,6 @@ class GitHubToolProvider
                         'path' => ['type' => 'string', 'description' => 'File path within the repository'],
                     ],
                     'required' => ['owner', 'repo', 'path'],
-                ],
-            ),
-            new ToolDefinition(
-                name: 'github_create_or_update_file',
-                description: 'Create or update a file in a GitHub repository (single-file commit). Provide sha when updating an existing file.',
-                parameters: [
-                    'type' => 'object',
-                    'properties' => [
-                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
-                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
-                        'path' => ['type' => 'string', 'description' => 'File path within the repository'],
-                        'content' => ['type' => 'string', 'description' => 'File content (plain text, will be base64-encoded automatically)'],
-                        'message' => ['type' => 'string', 'description' => 'Commit message'],
-                        'sha' => ['type' => 'string', 'description' => 'Current file SHA (required when updating an existing file)'],
-                        'branch' => ['type' => 'string', 'description' => 'Target branch (defaults to the repo default branch)'],
-                    ],
-                    'required' => ['owner', 'repo', 'path', 'content', 'message'],
                 ],
             ),
             new ToolDefinition(
@@ -115,19 +101,71 @@ class GitHubToolProvider
                 ],
             ),
             new ToolDefinition(
-                name: 'github_create_pull_request',
-                description: 'Create a pull request in a GitHub repository.',
+                name: 'github_list_issues',
+                description: 'List issues in a GitHub repository. Returns issue numbers, titles, states, labels, and URLs.',
                 parameters: [
                     'type' => 'object',
                     'properties' => [
                         'owner' => ['type' => 'string', 'description' => 'Repository owner'],
                         'repo' => ['type' => 'string', 'description' => 'Repository name'],
-                        'title' => ['type' => 'string', 'description' => 'PR title'],
-                        'body' => ['type' => 'string', 'description' => 'PR description (Markdown)'],
-                        'head' => ['type' => 'string', 'description' => 'Source branch name'],
-                        'base' => ['type' => 'string', 'description' => 'Target branch name (e.g. main)'],
+                        'state' => ['type' => 'string', 'enum' => ['open', 'closed', 'all'], 'description' => 'Filter by state (default: open)'],
+                        'labels' => ['type' => 'string', 'description' => 'Comma-separated label names to filter by (optional)'],
                     ],
-                    'required' => ['owner', 'repo', 'title', 'head', 'base'],
+                    'required' => ['owner', 'repo'],
+                ],
+            ),
+            new ToolDefinition(
+                name: 'github_get_issue',
+                description: 'Get the full details of a single GitHub issue including title, body, state, labels, assignees, and comments count.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
+                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
+                        'issue_number' => ['type' => 'integer', 'description' => 'Issue number'],
+                    ],
+                    'required' => ['owner', 'repo', 'issue_number'],
+                ],
+            ),
+            new ToolDefinition(
+                name: 'github_list_commits',
+                description: 'List recent commits on a branch. Returns SHA, message, author, and date.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
+                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
+                        'branch' => ['type' => 'string', 'description' => 'Branch name (defaults to the default branch)'],
+                        'per_page' => ['type' => 'integer', 'description' => 'Number of commits to return (default: 20, max: 100)'],
+                    ],
+                    'required' => ['owner', 'repo'],
+                ],
+            ),
+            new ToolDefinition(
+                name: 'github_get_commit',
+                description: 'Get full details of a single commit including the list of changed files and their diffs.',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
+                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
+                        'sha' => ['type' => 'string', 'description' => 'Commit SHA (full or abbreviated)'],
+                    ],
+                    'required' => ['owner', 'repo', 'sha'],
+                ],
+            ),
+            new ToolDefinition(
+                name: 'github_list_directory',
+                description: 'List the contents of a directory in a GitHub repository. Use path="" for root, or a relative path like "src/Controller".',
+                parameters: [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'Repository owner'],
+                        'repo' => ['type' => 'string', 'description' => 'Repository name'],
+                        'path' => ['type' => 'string', 'description' => 'Directory path (empty string = repo root)'],
+                        'branch' => ['type' => 'string', 'description' => 'Branch name (defaults to the default branch)'],
+                    ],
+                    'required' => ['owner', 'repo'],
                 ],
             ),
             new ToolDefinition(
@@ -198,11 +236,14 @@ class GitHubToolProvider
         return match ($name) {
             'github_list_repos' => $this->listRepos(),
             'github_get_file' => $this->getFile($args),
-            'github_create_or_update_file' => $this->createOrUpdateFile($args),
             'github_create_issue' => $this->createIssue($args),
             'github_comment_on_issue' => $this->commentOnIssue($args),
             'github_close_issue' => $this->closeIssue($args),
-            'github_create_pull_request' => $this->createPullRequest($args),
+            'github_list_issues' => $this->listIssues($args),
+            'github_get_issue' => $this->getIssue($args),
+            'github_list_commits' => $this->listCommits($args),
+            'github_get_commit' => $this->getCommit($args),
+            'github_list_directory' => $this->listDirectory($args),
             'github_list_pull_requests' => $this->listPullRequests($args),
             'github_get_pull_request' => $this->getPullRequest($args),
             'github_get_pull_request_files' => $this->getPullRequestFiles($args),
@@ -229,29 +270,6 @@ class GitHubToolProvider
         $content = base64_decode((string)($data['content'] ?? ''));
         $sha = (string)($data['sha'] ?? '');
         return "sha:{$sha}\n\n{$content}";
-    }
-
-    /** @param array<string, mixed> $args */
-    private function createOrUpdateFile(array $args): string
-    {
-        $payload = [
-            'message' => (string)($args['message'] ?? 'Update file'),
-            'content' => base64_encode((string)($args['content'] ?? '')),
-        ];
-        if (!empty($args['sha'])) {
-            $payload['sha'] = (string)$args['sha'];
-        }
-        if (!empty($args['branch'])) {
-            $payload['branch'] = (string)$args['branch'];
-        }
-        $result = $this->github->createOrUpdateFile(
-            (string)($args['owner'] ?? ''),
-            (string)($args['repo'] ?? ''),
-            (string)($args['path'] ?? ''),
-            $payload,
-        );
-        $commitSha = (string)($result['commit']['sha'] ?? 'unknown');
-        return "File committed successfully. Commit SHA: {$commitSha}";
     }
 
     /** @param array<string, mixed> $args */
@@ -296,19 +314,119 @@ class GitHubToolProvider
     }
 
     /** @param array<string, mixed> $args */
-    private function createPullRequest(array $args): string
+    private function listIssues(array $args): string
     {
-        $result = $this->github->createPullRequest(
+        $issues = $this->github->listIssues(
             (string)($args['owner'] ?? ''),
             (string)($args['repo'] ?? ''),
-            [
-                'title' => (string)($args['title'] ?? ''),
-                'body' => (string)($args['body'] ?? ''),
-                'head' => (string)($args['head'] ?? ''),
-                'base' => (string)($args['base'] ?? ''),
-            ],
+            (string)($args['state'] ?? 'open'),
+            isset($args['labels']) && $args['labels'] !== '' ? (string)$args['labels'] : null,
         );
-        return "PR #{$result['number']} created: {$result['html_url']}";
+        if (empty($issues)) {
+            return 'No issues found.';
+        }
+        $lines = array_map(fn($i) => sprintf(
+            '#%d [%s] "%s" — %s',
+            $i['number'] ?? 0,
+            $i['state'] ?? '',
+            $i['title'] ?? '',
+            $i['html_url'] ?? '',
+        ), $issues);
+        return implode("\n", $lines);
+    }
+
+    /** @param array<string, mixed> $args */
+    private function getIssue(array $args): string
+    {
+        $issue = $this->github->getIssue(
+            (string)($args['owner'] ?? ''),
+            (string)($args['repo'] ?? ''),
+            (int)($args['issue_number'] ?? 0),
+        );
+        $labels = implode(', ', array_map(fn($l) => (string)($l['name'] ?? ''), (array)($issue['labels'] ?? [])));
+        $assignees = implode(', ', array_map(fn($a) => (string)($a['login'] ?? ''), (array)($issue['assignees'] ?? [])));
+        return sprintf(
+            "Issue #%d: %s\nState: %s\nLabels: %s\nAssignees: %s\nComments: %d\nURL: %s\n\n%s",
+            $issue['number'] ?? 0,
+            $issue['title'] ?? '',
+            $issue['state'] ?? '',
+            $labels ?: '(none)',
+            $assignees ?: '(none)',
+            $issue['comments'] ?? 0,
+            $issue['html_url'] ?? '',
+            $issue['body'] ?? '(no description)',
+        );
+    }
+
+    /** @param array<string, mixed> $args */
+    private function listCommits(array $args): string
+    {
+        $commits = $this->github->listCommits(
+            (string)($args['owner'] ?? ''),
+            (string)($args['repo'] ?? ''),
+            (string)($args['branch'] ?? ''),
+            min(100, max(1, (int)($args['per_page'] ?? 20))),
+        );
+        if (empty($commits)) {
+            return 'No commits found.';
+        }
+        $lines = array_map(fn($c) => sprintf(
+            '%s %s (%s, %s)',
+            substr((string)($c['sha'] ?? ''), 0, 7),
+            $c['commit']['message'] ?? '',
+            $c['commit']['author']['name'] ?? '',
+            $c['commit']['author']['date'] ?? '',
+        ), $commits);
+        return implode("\n", $lines);
+    }
+
+    /** @param array<string, mixed> $args */
+    private function getCommit(array $args): string
+    {
+        $commit = $this->github->getCommit(
+            (string)($args['owner'] ?? ''),
+            (string)($args['repo'] ?? ''),
+            (string)($args['sha'] ?? ''),
+        );
+        $files = (array)($commit['files'] ?? []);
+        $fileLines = array_map(fn($f) => sprintf(
+            "--- %s [%s] +%d -%d ---\n%s",
+            $f['filename'] ?? '',
+            $f['status'] ?? '',
+            $f['additions'] ?? 0,
+            $f['deletions'] ?? 0,
+            $f['patch'] ?? '(binary or no diff)',
+        ), $files);
+        return sprintf(
+            "%s %s\nAuthor: %s <%s>\nDate: %s\n\n%s\n\nFiles changed:\n%s",
+            substr((string)($commit['sha'] ?? ''), 0, 7),
+            $commit['commit']['message'] ?? '',
+            $commit['commit']['author']['name'] ?? '',
+            $commit['commit']['author']['email'] ?? '',
+            $commit['commit']['author']['date'] ?? '',
+            $commit['html_url'] ?? '',
+            implode("\n\n", $fileLines) ?: '(none)',
+        );
+    }
+
+    /** @param array<string, mixed> $args */
+    private function listDirectory(array $args): string
+    {
+        $entries = $this->github->listDirectory(
+            (string)($args['owner'] ?? ''),
+            (string)($args['repo'] ?? ''),
+            (string)($args['path'] ?? ''),
+            (string)($args['branch'] ?? ''),
+        );
+        if (empty($entries)) {
+            return 'Directory is empty.';
+        }
+        $lines = array_map(fn($e) => sprintf(
+            '[%s] %s',
+            $e['type'] ?? 'file',
+            $e['path'] ?? $e['name'] ?? '',
+        ), $entries);
+        return implode("\n", $lines);
     }
 
     /** @param array<string, mixed> $args */

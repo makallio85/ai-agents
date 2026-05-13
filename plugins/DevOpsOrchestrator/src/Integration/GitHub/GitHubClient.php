@@ -118,6 +118,43 @@ class GitHubClient implements GitHubClientInterface
         return array_values($this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/pulls/{$number}/commits?per_page=100"));
     }
 
+    public function listIssues(string $owner, string $repo, string $state = 'open', ?string $labels = null): array
+    {
+        $url = "{$this->apiUrl}/repos/{$owner}/{$repo}/issues?state={$state}&per_page=50";
+        if ($labels !== null && $labels !== '') {
+            $url .= '&labels=' . urlencode($labels);
+        }
+        return array_values($this->request('GET', $url));
+    }
+
+    public function getIssue(string $owner, string $repo, int $issueNumber): array
+    {
+        return $this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/issues/{$issueNumber}");
+    }
+
+    public function listCommits(string $owner, string $repo, string $branch = '', int $perPage = 30): array
+    {
+        $url = "{$this->apiUrl}/repos/{$owner}/{$repo}/commits?per_page={$perPage}";
+        if ($branch !== '') {
+            $url .= '&sha=' . urlencode($branch);
+        }
+        return array_values($this->request('GET', $url));
+    }
+
+    public function getCommit(string $owner, string $repo, string $sha): array
+    {
+        return $this->request('GET', "{$this->apiUrl}/repos/{$owner}/{$repo}/commits/{$sha}");
+    }
+
+    public function listDirectory(string $owner, string $repo, string $path = '', string $branch = ''): array
+    {
+        $url = "{$this->apiUrl}/repos/{$owner}/{$repo}/contents/" . ltrim($path, '/');
+        if ($branch !== '') {
+            $url .= '?ref=' . urlencode($branch);
+        }
+        return array_values($this->request('GET', $url));
+    }
+
     /**
      * @param array<string, mixed> $body
      * @return array<string, mixed>

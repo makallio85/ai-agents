@@ -5,7 +5,6 @@ namespace App\Channels\Slack\Service;
 
 use App\Model\Entity\Agent;
 use App\Model\Entity\AgentContext;
-use Cake\Log\Log;
 use Cake\ORM\TableRegistry;
 use Cake\Utility\Security;
 
@@ -115,21 +114,12 @@ class SlackConfigService
             return null;
         }
 
-        $decryptedSecret = $this->decrypt((string)$values[self::KEY_SIGNING_SECRET]);
-        Log::error(sprintf(
-            'SlackConfigService::buildFromAgent agentId=%d secretStoredLen=%d secretDecryptedLen=%d secretDecryptedFirst4=%s',
-            $agent->id,
-            strlen((string)$values[self::KEY_SIGNING_SECRET]),
-            strlen($decryptedSecret),
-            substr($decryptedSecret, 0, 4),
-        ));
-
         return new SlackAgentConfig(
             agent: $agent,
             appId: (string)$values[self::KEY_APP_ID],
             botUserId: (string)($values[self::KEY_BOT_USER_ID] ?? ''),
             botToken: $this->decrypt((string)$values[self::KEY_BOT_TOKEN]),
-            signingSecret: $decryptedSecret,
+            signingSecret: $this->decrypt((string)$values[self::KEY_SIGNING_SECRET]),
             teamId: $values[self::KEY_TEAM_ID] ?? null,
             enabled: ($values[self::KEY_ENABLED] ?? 'true') === 'true',
         );
@@ -157,23 +147,16 @@ class SlackConfigService
         /** @var \App\Model\Entity\AgentContext|null $existing */
         $existing = $contexts->find()->where(['agent_id' => $agentId, 'context_key' => $key])->first();
         if ($existing !== null) {
-            Log::error("SlackConfigService::upsert UPDATE agent_id={$agentId} key={$key}");
             $existing->value = $stored;
-            /** @var \App\Model\Entity\AgentContext $saved */
-            $saved = $contexts->saveOrFail($existing);
-            Log::error('SlackConfigService::upsert UPDATE done id=' . $saved->id);
+            $contexts->saveOrFail($existing);
             return;
         }
-        Log::error("SlackConfigService::upsert INSERT agent_id={$agentId} key={$key}");
         $entity = $contexts->newEntity([
             'agent_id' => $agentId,
             'context_key' => $key,
             'value' => $stored,
         ]);
-        Log::error('SlackConfigService::upsert entity errors: ' . json_encode($entity->getErrors()));
-        /** @var \App\Model\Entity\AgentContext $saved */
-        $saved = $contexts->saveOrFail($entity);
-        Log::error('SlackConfigService::upsert INSERT done id=' . $saved->id);
+        $contexts->saveOrFail($entity);
     }
 
     private function encryptionKey(): string

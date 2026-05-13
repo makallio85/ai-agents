@@ -101,4 +101,41 @@ interface GitHubClientInterface
      * @return list<array<string, mixed>> Commit data.
      */
     public function getPullRequestCommits(string $owner, string $repo, int $number): array;
+
+    /**
+     * List issues for a repository.
+     *
+     * @param string $state 'open', 'closed', or 'all'
+     * @param string|null $labels Comma-separated label names to filter by.
+     * @return list<array<string, mixed>> Issue data.
+     */
+    public function listIssues(string $owner, string $repo, string $state = 'open', ?string $labels = null): array;
+
+    /**
+     * Get a single issue by number.
+     *
+     * @return array<string, mixed> Issue data including title, body, state, labels, assignees, etc.
+     */
+    public function getIssue(string $owner, string $repo, int $issueNumber): array;
+
+    /**
+     * List commits for a repository branch.
+     *
+     * @return list<array<string, mixed>> Commit data with sha, message, author, date.
+     */
+    public function listCommits(string $owner, string $repo, string $branch = '', int $perPage = 30): array;
+
+    /**
+     * Get a single commit by SHA.
+     *
+     * @return array<string, mixed> Full commit data including files changed.
+     */
+    public function getCommit(string $owner, string $repo, string $sha): array;
+
+    /**
+     * List contents of a directory in a repository.
+     *
+     * @return list<array<string, mixed>> Directory entries with name, path, type (file/dir), sha.
+     */
+    public function listDirectory(string $owner, string $repo, string $path = '', string $branch = ''): array;
 }
