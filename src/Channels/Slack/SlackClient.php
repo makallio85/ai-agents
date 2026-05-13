@@ -64,24 +64,27 @@ class SlackClient implements SlackClientInterface
     }
 
     /**
-     * Downloads a private Slack file using the bot token.
+     * Downloads a private Slack file using a two-step approach.
      *
-     * Uses curl rather than file_get_contents + follow_location because
-     * PHP's stream wrapper does not reliably follow HTTP redirects in CLI
-     * mode (the queue worker environment). Slack's CDN URLs redirect from
-     * slack.com to a CloudFront host; file_get_contents returned the HTML
-     * redirect page body instead of the audio bytes, causing Whisper to
-     * reject the payload with HTTP 400 "Invalid file format".
+     * Step 1 — authenticate: GET the url_private_download with the Bearer
+     * token. Slack responds with either the file bytes directly (200) or a
+     * redirect to a pre-signed CDN URL (302).
      *
-     * Curl handles redirects (CURLOPT_FOLLOWLOCATION) correctly in all PHP
-     * SAPI modes and is used consistently throughout the rest of the codebase
-     * (OpenAiClient, GitHubClient, WhatsAppClient).
+     * Step 2 — fetch CDN bytes: download from the redirect target WITHOUT
+     * the Authorization header. This is critical: PHP curl forwards all
+     * custom HTTPHEADER values (including Authorization) on every redirect,
+     * regardless of the target host. Slack's CDN (CloudFront) rejects
+     * requests that carry a Slack Bearer token and returns an HTML error
+     * page instead of the file. The two-step approach ensures the Bearer
+     * header only goes to files.slack.com and is never forwarded to the CDN.
      *
      * @throws SlackException On curl failure or HTTP error.
      * @return array{content: string, mime: string}
      */
     public function downloadFile(string $botToken, string $url): array
     {
+        // Step 1: hit the Slack URL with the Bearer token; don't follow
+        // redirects so curl never forwards the header to a third-party CDN.
         $curl = curl_init($url);
         if ($curl === false) {
             throw new SlackException('Failed to initialise curl for Slack file download');
@@ -89,14 +92,60 @@ class SlackClient implements SlackClientInterface
 
         curl_setopt_array($curl, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_HTTPHEADER     => [
                 'Authorization: Bearer ' . $botToken,
                 'User-Agent: AI-Agents-Platform/1.0',
             ],
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_HEADER         => true,
+        ]);
+
+        $raw = curl_exec($curl);
+        $httpCode = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        $headerSize = (int)curl_getinfo($curl, CURLINFO_HEADER_SIZE);
+        $redirectUrl = (string)curl_getinfo($curl, CURLINFO_REDIRECT_URL);
+        curl_close($curl);
+
+        if ($raw === false || !is_string($raw)) {
+            throw new SlackException("Slack file download failed: no response from {$url}");
+        }
+        if ($httpCode >= 400) {
+            throw new SlackException("Slack file download HTTP error {$httpCode}", $httpCode);
+        }
+
+        // If Slack redirected us to a CDN URL, download from there without
+        // the Bearer header. The CDN URL is pre-signed and self-authenticating.
+        if ($httpCode >= 300 && $redirectUrl !== '') {
+            return $this->curlGet($redirectUrl);
+        }
+
+        // Slack served the file directly (no redirect).
+        $rawHeaders = substr($raw, 0, $headerSize);
+        $bytes = substr($raw, $headerSize);
+        return ['content' => $bytes, 'mime' => self::extractContentType($rawHeaders)];
+    }
+
+    /**
+     * Simple unauthenticated GET via curl — used for pre-signed CDN URLs
+     * that carry auth in their query string.
+     *
+     * @return array{content: string, mime: string}
+     */
+    private function curlGet(string $url): array
+    {
+        $curl = curl_init($url);
+        if ($curl === false) {
+            throw new SlackException('Failed to initialise curl for CDN file download');
+        }
+
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_MAXREDIRS      => 3,
+            CURLOPT_HTTPHEADER     => ['User-Agent: AI-Agents-Platform/1.0'],
             CURLOPT_TIMEOUT        => 60,
-            CURLOPT_HEADER         => true,   // include response headers in output
+            CURLOPT_HEADER         => true,
         ]);
 
         $raw = curl_exec($curl);
@@ -105,25 +154,29 @@ class SlackClient implements SlackClientInterface
         curl_close($curl);
 
         if ($raw === false || !is_string($raw)) {
-            throw new SlackException("Slack file download failed for URL: {$url}");
+            throw new SlackException("CDN file download failed for URL: {$url}");
         }
-
         if ($httpCode >= 400) {
-            throw new SlackException("Slack file download HTTP error {$httpCode}", $httpCode);
+            throw new SlackException("CDN file download HTTP error {$httpCode}", $httpCode);
         }
 
-        // Extract Content-Type from the raw response headers.
         $rawHeaders = substr($raw, 0, $headerSize);
         $bytes = substr($raw, $headerSize);
-        $mime = 'application/octet-stream';
+        return ['content' => $bytes, 'mime' => self::extractContentType($rawHeaders)];
+    }
+
+    /**
+     * Extracts the Content-Type value from a raw HTTP response header block.
+     * Returns 'application/octet-stream' when the header is absent.
+     */
+    private static function extractContentType(string $rawHeaders): string
+    {
         foreach (explode("\r\n", $rawHeaders) as $header) {
             if (stripos($header, 'content-type:') === 0) {
-                $mime = trim(substr($header, strlen('content-type:')));
-                break;
+                return trim(substr($header, strlen('content-type:')));
             }
         }
-
-        return ['content' => $bytes, 'mime' => $mime];
+        return 'application/octet-stream';
     }
 
     /**
