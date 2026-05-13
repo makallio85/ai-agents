@@ -194,6 +194,7 @@ class AgentsController extends AppController
      */
     public function slackConfig(int $id): void
     {
+        Log::error("TRACE slackConfig (GET action) called id={$id} method=" . $this->request->getMethod());
         $this->requirePermission('chat', 'configure');
         $agent = $this->agentService->findById($id);
         if ($agent === null) {
