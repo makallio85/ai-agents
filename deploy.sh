@@ -66,11 +66,16 @@ docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations seed -
 
 docker compose -f docker-compose.prod.yml exec -T app bin/cake cache clear_all
 
-# Fix ownership of tmp/ so PHP-FPM (www-data) can read and write cache files.
-# Without this, schema cache files created by a root-owned deploy remain
-# unreadable/unwritable by www-data, causing stale schema to persist and
-# save() to silently fail.
+# Fix ownership of tmp/ and logs/ so PHP-FPM (www-data) can read and write
+# cache and log files. Without this, files created by a root-owned deploy
+# remain unreadable/unwritable by www-data.
 docker compose -f docker-compose.prod.yml exec -T --user root app \
-  chown -R www-data:www-data /var/www/html/tmp/
+  chown -R www-data:www-data /var/www/html/tmp/ /var/www/html/logs/
+
+# Gracefully restart PHP-FPM to clear opcache so updated PHP files are
+# picked up immediately. Without this, opcache may serve stale bytecode
+# compiled from the previous deploy's source files.
+docker compose -f docker-compose.prod.yml exec -T app \
+  kill -USR2 1 || true
 
 echo "Deployment completed"

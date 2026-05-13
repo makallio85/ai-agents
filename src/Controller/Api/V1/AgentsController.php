@@ -7,6 +7,7 @@ use App\Channels\Slack\Service\SlackConfigService;
 use App\Channels\WhatsApp\Service\WhatsAppConfigService;
 use App\Service\AgentService;
 use App\Service\AgentLogService;
+use Cake\Log\Log;
 
 class AgentsController extends AppController
 {
@@ -212,17 +213,21 @@ class AgentsController extends AppController
      */
     public function updateSlackConfig(int $id): void
     {
+        Log::error("TRACE updateSlackConfig start id={$id}");
         $this->requirePermission('chat', 'configure');
         $agent = $this->agentService->findById($id);
         if ($agent === null) {
+            Log::error("TRACE updateSlackConfig agent not found id={$id}");
             $this->error('Agent not found', [], 404);
             return;
         }
 
         $data = $this->request->getData();
+        Log::error('TRACE updateSlackConfig data=' . json_encode($data));
         $appId = trim((string)($data['app_id'] ?? ''));
         $botUserId = trim((string)($data['bot_user_id'] ?? ''));
         if ($appId === '' || $botUserId === '') {
+            Log::error("TRACE updateSlackConfig missing app_id/bot_user_id appId={$appId} botUserId={$botUserId}");
             $this->error('app_id and bot_user_id are required', [], 422);
             return;
         }
@@ -231,10 +236,12 @@ class AgentsController extends AppController
         $botToken = isset($data['bot_token']) ? trim((string)$data['bot_token']) : null;
         $signingSecret = isset($data['signing_secret']) ? trim((string)$data['signing_secret']) : null;
         if (!$current['bot_token_set'] && ($botToken === null || $botToken === '')) {
+            Log::error('TRACE updateSlackConfig missing bot_token on first save');
             $this->error('bot_token is required on first save', [], 422);
             return;
         }
         if (!$current['signing_secret_set'] && ($signingSecret === null || $signingSecret === '')) {
+            Log::error('TRACE updateSlackConfig missing signing_secret on first save');
             $this->error('signing_secret is required on first save', [], 422);
             return;
         }
@@ -242,6 +249,7 @@ class AgentsController extends AppController
         $teamId = isset($data['team_id']) ? trim((string)$data['team_id']) : null;
         $enabled = (bool)($data['enabled'] ?? false);
 
+        Log::error("TRACE updateSlackConfig calling setForAgent id={$id}");
         $this->slackConfig->setForAgent(
             agentId: $id,
             appId: $appId,
@@ -251,6 +259,7 @@ class AgentsController extends AppController
             teamId: $teamId === '' ? null : $teamId,
             enabled: $enabled,
         );
+        Log::error('TRACE updateSlackConfig setForAgent done');
 
         $this->success($this->slackConfig->readForUi($id));
     }
