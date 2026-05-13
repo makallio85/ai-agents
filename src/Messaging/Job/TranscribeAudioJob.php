@@ -89,6 +89,20 @@ class TranscribeAudioJob implements JobInterface
             );
         }
 
+        // 1b. Guard: if the download returned empty bytes the CDN likely redirected
+        //     to an HTML error page (observed when file_get_contents follow_location
+        //     fires in CLI / queue worker context). Fail gracefully so the user gets
+        //     an apology instead of a silent Whisper 400.
+        if (strlen((string)($media['content'] ?? '')) === 0) {
+            return $this->failGracefully(
+                $row,
+                'media_download_failed',
+                'Downloaded audio file is empty — possible CDN redirect issue in queue worker',
+                "Sorry — I couldn't download your voice note. Please send it as text and I'll help.",
+                $session->agent->id,
+            );
+        }
+
         // 2. Transcribe.
         try {
             // Prefer the MIME type stored on the row (from the original Slack
