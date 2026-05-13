@@ -164,14 +164,14 @@
                 savingWhatsapp.value = true;
                 whatsappError.value = '';
                 try {
-                    await Api.agents.updateWhatsappConfig(agentId, {
+                    var result = await Api.agents.updateWhatsappConfig(agentId, {
                         phone_number_id: whatsappForm.value.phone_number_id,
                         display_number: whatsappForm.value.display_number,
                         access_token: whatsappForm.value.access_token || '',
                         welcome_template_name: whatsappForm.value.welcome_template_name,
                         enabled: !!whatsappForm.value.enabled,
                     });
-                    await loadWhatsapp();
+                    if (result.data) { whatsapp.value = result.data; }
                     whatsappEditing.value = false;
                 } catch (err) {
                     whatsappError.value = err.message || 'Failed to save WhatsApp configuration';
@@ -215,7 +215,7 @@
                 savingSlack.value = true;
                 slackError.value = '';
                 try {
-                    await Api.agents.updateSlackConfig(agentId, {
+                    var result = await Api.agents.updateSlackConfig(agentId, {
                         app_id: slackForm.value.app_id,
                         bot_user_id: slackForm.value.bot_user_id,
                         bot_token: slackForm.value.bot_token || '',
@@ -223,7 +223,7 @@
                         team_id: slackForm.value.team_id || '',
                         enabled: !!slackForm.value.enabled,
                     });
-                    await loadSlack();
+                    if (result.data) { slack.value = result.data; }
                     slackEditing.value = false;
                 } catch (err) {
                     slackError.value = err.message || 'Failed to save Slack configuration';
