@@ -205,7 +205,14 @@ class Application extends BaseApplication implements
             ->addArgument(\App\Service\AgentLogService::class);
 
         // ---------- Speech (Google STT + TTS) ----------
+        // Prefer OpenAI Whisper when an OpenAI key is configured — the project
+        // already has one and no additional vendor account is needed. Fall back
+        // to Google Cloud Speech-to-Text if only a Google API key is present.
         $container->addShared(\App\Integration\Speech\SpeechToTextInterface::class, function (): \App\Integration\Speech\SpeechToTextInterface {
+            $openAiKey = (string)(\Cake\Core\Configure::read('Llm.openaiApiKey') ?? env('OPENAI_API_KEY', ''));
+            if ($openAiKey !== '') {
+                return new \App\Integration\Speech\OpenAiSpeechToTextClient($openAiKey);
+            }
             return \App\Integration\Speech\GoogleSpeechToTextClient::fromConfigure();
         });
         $container->addShared(\App\Integration\Speech\TextToSpeechInterface::class, function (): \App\Integration\Speech\TextToSpeechInterface {
