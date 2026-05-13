@@ -9,6 +9,7 @@ use App\Controller\AppController;
 use App\Messaging\Job\ProcessInboundMessageJob;
 use App\Model\Entity\InboundEvent;
 use Cake\Http\Response;
+use Cake\Log\Log;
 use Cake\ORM\TableRegistry;
 use Cake\Queue\QueueManager;
 
@@ -74,6 +75,15 @@ class SlackController extends AppController
 
         $sigHeader = $this->request->getHeaderLine('X-Slack-Signature');
         $tsHeader = $this->request->getHeaderLine('X-Slack-Request-Timestamp');
+        Log::error(sprintf(
+            'SlackController::receive sigcheck appId=%s rawBodyLen=%d tsHeader=%s sigHeader=%s secretLen=%d secretFirst4=%s',
+            $appId,
+            strlen($rawBody),
+            $tsHeader,
+            $sigHeader,
+            strlen($config->signingSecret),
+            substr($config->signingSecret, 0, 4),
+        ));
         $signatureValid = $this->verifier->verify($config->signingSecret, $rawBody, $sigHeader, $tsHeader ?: null);
         if (!$signatureValid) {
             $this->persistEvent($payload, $appId, $rawBody, signatureValid: false, errorMessage: 'invalid signature');

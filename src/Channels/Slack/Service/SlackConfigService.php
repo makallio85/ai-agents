@@ -116,12 +116,21 @@ class SlackConfigService
             return null;
         }
 
+        $decryptedSecret = $this->decrypt((string)$values[self::KEY_SIGNING_SECRET]);
+        Log::error(sprintf(
+            'SlackConfigService::buildFromAgent agentId=%d secretStoredLen=%d secretDecryptedLen=%d secretDecryptedFirst4=%s',
+            $agent->id,
+            strlen((string)$values[self::KEY_SIGNING_SECRET]),
+            strlen($decryptedSecret),
+            substr($decryptedSecret, 0, 4),
+        ));
+
         return new SlackAgentConfig(
             agent: $agent,
             appId: (string)$values[self::KEY_APP_ID],
             botUserId: (string)($values[self::KEY_BOT_USER_ID] ?? ''),
             botToken: $this->decrypt((string)$values[self::KEY_BOT_TOKEN]),
-            signingSecret: $this->decrypt((string)$values[self::KEY_SIGNING_SECRET]),
+            signingSecret: $decryptedSecret,
             teamId: $values[self::KEY_TEAM_ID] ?? null,
             enabled: ($values[self::KEY_ENABLED] ?? 'true') === 'true',
         );
