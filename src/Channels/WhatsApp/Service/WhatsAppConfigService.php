@@ -169,8 +169,11 @@ class WhatsAppConfigService
 
     private function encryptionKey(): string
     {
-        $key = (string)Configure::read('Security.salt', '');
-        return $key !== '' ? $key : Configure::readOrFail('App.encryptionKey');
+        // Security::setSalt() is called in config/bootstrap.php via
+        // Configure::consume(), which removes 'Security.salt' from Configure.
+        // Reading Configure::read('Security.salt') would always return null here.
+        // Security::getSalt() is the reliable source after bootstrap.
+        return Security::getSalt();
     }
 
     private function encrypt(string $plain): string

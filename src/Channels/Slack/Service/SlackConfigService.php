@@ -5,7 +5,6 @@ namespace App\Channels\Slack\Service;
 
 use App\Model\Entity\Agent;
 use App\Model\Entity\AgentContext;
-use Cake\Core\Configure;
 use Cake\Log\Log;
 use Cake\ORM\TableRegistry;
 use Cake\Utility\Security;
@@ -179,12 +178,11 @@ class SlackConfigService
 
     private function encryptionKey(): string
     {
-        $salt = Configure::read('Security.salt');
-        if (is_string($salt) && $salt !== '') {
-            return $salt;
-        }
-        /** @var string */
-        return Configure::readOrFail('App.encryptionKey');
+        // Security::setSalt() is called in config/bootstrap.php via
+        // Configure::consume(), which removes 'Security.salt' from Configure.
+        // Reading Configure::read('Security.salt') would always return null here.
+        // Security::getSalt() is the reliable source after bootstrap.
+        return Security::getSalt();
     }
 
     private function encrypt(string $plain): string
