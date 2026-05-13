@@ -19,4 +19,8 @@ jobs:
           username: ${{ secrets.PROD_USER }}
           key: ${{ secrets.PROD_SSH_KEY }}
           script: |
-            /srv/deploy/deploy-ai-agents.sh
+            # Bootstrap on first ever deploy: clone so deploy.sh is available
+            if [ ! -d "/srv/apps/ai-agents/.git" ]; then
+              git clone git@github.com:makallio85/ai-agents.git /srv/apps/ai-agents
+            fi
+            bash /srv/apps/ai-agents/deploy.sh
