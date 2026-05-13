@@ -92,10 +92,6 @@
            class="nav-link <?= $this->request->getParam('controller') === 'Agents' ? 'active' : '' ?>">
             <i class="bi bi-cpu"></i> Agents
         </a>
-        <a href="<?= $this->Url->build('/conversations') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'Conversations' ? 'active' : '' ?>">
-            <i class="bi bi-chat-dots"></i> Conversations
-        </a>
         <a href="<?= $this->Url->build('/chat') ?>"
            class="nav-link <?= $this->request->getParam('controller') === 'Chat' ? 'active' : '' ?>">
             <i class="bi bi-robot"></i> Chat

@@ -50,7 +50,7 @@ class InitialDataSeed extends BaseSeed
         }
 
         // Permissions — skip modules that already have entries for these roles
-        $modules = ['agents', 'chat', 'conversations', 'users', 'roles', 'labels', 'github_integrations', 'execution_history', 'agent_logs', 'prompt_versions'];
+        $modules = ['agents', 'chat', 'users', 'roles', 'labels', 'github_integrations', 'execution_history', 'agent_logs', 'prompt_versions'];
         $actions = ['read', 'create', 'update', 'delete'];
 
         $existingPerms = $adapter->fetchAll(
@@ -73,10 +73,10 @@ class InitialDataSeed extends BaseSeed
             }
         }
 
-        // User role — read only on agents and conversations
+        // User role — read only on agents
         $userId = $roleIds['user'] ?? null;
         if ($userId) {
-            foreach ([['agents', 'read'], ['conversations', 'read'], ['conversations', 'create']] as [$module, $action]) {
+            foreach ([['agents', 'read']] as [$module, $action]) {
                 if (!isset($permSet[$userId . '|' . $module . '|' . $action])) {
                     $permissionsData[] = ['role_id' => $userId, 'module' => $module, 'action' => $action, 'created' => $now, 'modified' => $now];
                 }

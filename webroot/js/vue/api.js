@@ -136,13 +136,6 @@ var Api = (function () {
         setReplyMode: function (id, mode) { return _coreRequest('POST', 'users/reply-mode/' + id, { mode: mode }); },
     };
 
-    var conversations = {
-        index: function () { return _coreRequest('GET', 'conversations'); },
-        view: function (id) { return _coreRequest('GET', 'conversations/view/' + id); },
-        create: function (data) { return _coreRequest('POST', 'conversations/create', data); },
-        del: function (id) { return _coreRequest('DELETE', 'conversations/delete/' + id); },
-    };
-
     var labels = {
         index: function () { return _coreRequest('GET', 'labels'); },
         view: function (id) { return _coreRequest('GET', 'labels/view/' + id); },
@@ -267,7 +260,6 @@ var Api = (function () {
         auth: auth,
         agents: agents,
         users: users,
-        conversations: conversations,
         labels: labels,
         logs: logs,
         githubIntegrations: githubIntegrations,

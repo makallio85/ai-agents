@@ -61,8 +61,6 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/dashboard', ['controller' => 'Dashboard', 'action' => 'index']);
         $builder->connect('/agents', ['controller' => 'Agents', 'action' => 'index']);
         $builder->connect('/agents/view/{id}', ['controller' => 'Agents', 'action' => 'view'], ['id' => '\d+', 'pass' => ['id']]);
-        $builder->connect('/conversations', ['controller' => 'Conversations', 'action' => 'index']);
-        $builder->connect('/conversations/view/{id}', ['controller' => 'Conversations', 'action' => 'view'], ['id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/labels', ['controller' => 'Labels', 'action' => 'index']);
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index']);
         $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
@@ -106,12 +104,6 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/users/approve/{id}', ['controller' => 'Users', 'action' => 'approve'], ['_method' => 'POST', '_name' => 'api.v1.users.approve', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/users/reject/{id}', ['controller' => 'Users', 'action' => 'reject'], ['_method' => 'POST', '_name' => 'api.v1.users.reject', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/users/reply-mode/{id}', ['controller' => 'Users', 'action' => 'setReplyMode'], ['_method' => 'POST', '_name' => 'api.v1.users.set_reply_mode', 'id' => '\d+', 'pass' => ['id']]);
-
-        // Conversation CRUD
-        $builder->connect('/conversations', ['controller' => 'Conversations', 'action' => 'index'], ['_name' => 'api.v1.conversations.index']);
-        $builder->connect('/conversations/create', ['controller' => 'Conversations', 'action' => 'create'], ['_name' => 'api.v1.conversations.create']);
-        $builder->connect('/conversations/view/{id}', ['controller' => 'Conversations', 'action' => 'view'], ['_name' => 'api.v1.conversations.view', 'id' => '\d+', 'pass' => ['id']]);
-        $builder->connect('/conversations/delete/{id}', ['controller' => 'Conversations', 'action' => 'delete'], ['_name' => 'api.v1.conversations.delete', 'id' => '\d+', 'pass' => ['id']]);
 
         // Labels
         $builder->connect('/labels', ['controller' => 'Labels', 'action' => 'index'], ['_name' => 'api.v1.labels.index']);

@@ -6,7 +6,7 @@ $this->assign('title', 'Dashboard');
 ?>
 <div id="dashboard-app">
     <div class="row g-4 mb-4">
-        <div class="col-sm-6 col-xl-3">
+        <div class="col-sm-6 col-xl-4">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
@@ -21,22 +21,22 @@ $this->assign('title', 'Dashboard');
                 </div>
             </div>
         </div>
-        <div class="col-sm-6 col-xl-3">
+        <div class="col-sm-6 col-xl-4">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
                         <div class="flex-shrink-0 bg-success bg-opacity-10 rounded p-3">
-                            <i class="bi bi-chat-dots text-success fs-4"></i>
+                            <i class="bi bi-robot text-success fs-4"></i>
                         </div>
                         <div>
-                            <div class="text-muted small">Conversations</div>
-                            <div class="fs-4 fw-bold">{{ stats.conversations }}</div>
+                            <div class="text-muted small">Active agents</div>
+                            <div class="fs-4 fw-bold">{{ stats.activeAgents }}</div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-sm-6 col-xl-3">
+        <div class="col-sm-6 col-xl-4">
             <div class="card border-0 shadow-sm">
                 <div class="card-body">
                     <div class="d-flex align-items-center gap-3">
@@ -44,23 +44,8 @@ $this->assign('title', 'Dashboard');
                             <i class="bi bi-github text-warning fs-4"></i>
                         </div>
                         <div>
-                            <div class="text-muted small">Issues created</div>
-                            <div class="fs-4 fw-bold">{{ stats.issues }}</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-sm-6 col-xl-3">
-            <div class="card border-0 shadow-sm">
-                <div class="card-body">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="flex-shrink-0 bg-danger bg-opacity-10 rounded p-3">
-                            <i class="bi bi-exclamation-triangle text-danger fs-4"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted small">Failed jobs</div>
-                            <div class="fs-4 fw-bold">{{ stats.failed }}</div>
+                            <div class="text-muted small">GitHub integrations</div>
+                            <div class="fs-4 fw-bold">{{ stats.integrations }}</div>
                         </div>
                     </div>
                 </div>
@@ -70,51 +55,6 @@ $this->assign('title', 'Dashboard');
 
     <div class="row g-4">
         <div class="col-lg-8">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-3">
-                    <h6 class="mb-0 fw-semibold">Recent conversations</h6>
-                    <a href="<?= $this->Url->build('/conversations') ?>" class="btn btn-sm btn-outline-primary">View all</a>
-                </div>
-                <div class="card-body p-0">
-                    <div v-if="loadingConversations" class="p-4 text-center text-muted">
-                        <div class="spinner-border spinner-border-sm me-2"></div> Loading…
-                    </div>
-                    <div v-else-if="conversations.length === 0" class="p-4 text-center text-muted">
-                        No conversations yet.
-                    </div>
-                    <div v-else class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="ps-4">Title</th>
-                                    <th>Status</th>
-                                    <th>Blocks</th>
-                                    <th>Created</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="conv in conversations" :key="conv.id">
-                                    <td class="ps-4">
-                                        <a :href="'<?= $this->Url->build('/conversations/view/') ?>' + conv.id" class="text-decoration-none fw-medium">
-                                            {{ conv.title || 'Untitled #' + conv.id }}
-                                        </a>
-                                    </td>
-                                    <td>
-                                        <span :class="statusBadgeClass(conv.status)" class="badge">
-                                            {{ conv.status }}
-                                        </span>
-                                    </td>
-                                    <td>{{ conv.blocks_processed }} / {{ conv.blocks_found }}</td>
-                                    <td class="text-muted small">{{ formatDate(conv.created) }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-3">
                     <h6 class="mb-0 fw-semibold">Active agents</h6>
@@ -144,6 +84,28 @@ $this->assign('title', 'Dashboard');
                                 {{ agent.is_active ? 'Active' : 'Inactive' }}
                             </span>
                         </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom d-flex align-items-center justify-content-between py-3">
+                    <h6 class="mb-0 fw-semibold">Quick links</h6>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="<?= $this->Url->build('/chat') ?>" class="list-group-item list-group-item-action">
+                        <i class="bi bi-robot me-2 text-primary"></i> Chat
+                    </a>
+                    <a href="<?= $this->Url->build('/github-integrations') ?>" class="list-group-item list-group-item-action">
+                        <i class="bi bi-github me-2 text-warning"></i> GitHub integrations
+                    </a>
+                    <a href="<?= $this->Url->build('/labels') ?>" class="list-group-item list-group-item-action">
+                        <i class="bi bi-tags me-2 text-info"></i> Labels
+                    </a>
+                    <a href="<?= $this->Url->build('/logs') ?>" class="list-group-item list-group-item-action">
+                        <i class="bi bi-journal-text me-2 text-secondary"></i> Logs
                     </a>
                 </div>
             </div>

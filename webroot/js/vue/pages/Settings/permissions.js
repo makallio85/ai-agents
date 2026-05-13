@@ -9,7 +9,6 @@
     var MODULES = [
         { key: 'agents',              label: 'Agents' },
         { key: 'chat',                label: 'Chat' },
-        { key: 'conversations',       label: 'Conversations' },
         { key: 'users',               label: 'Users' },
         { key: 'roles',               label: 'Roles' },
         { key: 'labels',              label: 'Labels' },
