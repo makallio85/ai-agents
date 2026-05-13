@@ -13,7 +13,8 @@
         "cakephp/plugin-installer": "^2.0",
         "cakephp/queue": "^2.0",
         "enqueue/redis": "^0.10.27",
-        "mobiledetect/mobiledetectlib": "^4.8.03"
+        "mobiledetect/mobiledetectlib": "^4.8.03",
+        "predis/predis": "^1.1"
     },
     "require-dev": {
         "cakephp/bake": "^3.6",
