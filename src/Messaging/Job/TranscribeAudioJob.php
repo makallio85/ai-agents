@@ -89,11 +89,35 @@ class TranscribeAudioJob implements JobInterface
             );
         }
 
-        // 1b. Guard: if the download returned empty bytes the CDN likely redirected
+        // 1b. Log download diagnostics so we can verify the audio bytes are
+        //     correct before sending to Whisper.
+        $downloadedBytes = strlen((string)($media['content'] ?? ''));
+        $downloadedMime  = (string)($media['mime'] ?? '');
+        $storedMime      = (string)($row->media_mime_type ?? '');
+        $effectiveMime   = $storedMime ?: $downloadedMime ?: 'application/octet-stream';
+        $this->logService->success(
+            $session->agent->id,
+            'transcribe-download-' . $row->id,
+            'Audio downloaded',
+            0,
+            [
+                'session_id'       => $session->id,
+                'message_id'       => $row->id,
+                'bytes'            => $downloadedBytes,
+                'cdn_mime'         => $downloadedMime,
+                'stored_mime'      => $storedMime,
+                'effective_mime'   => $effectiveMime,
+                'media_url'        => (string)($row->media_url ?? ''),
+                'first_16_bytes_hex' => bin2hex(substr((string)($media['content'] ?? ''), 0, 16)),
+            ],
+            $session->user->id,
+        );
+
+        // Guard: if the download returned empty bytes the CDN likely redirected
         //     to an HTML error page (observed when file_get_contents follow_location
         //     fires in CLI / queue worker context). Fail gracefully so the user gets
         //     an apology instead of a silent Whisper 400.
-        if (strlen((string)($media['content'] ?? '')) === 0) {
+        if ($downloadedBytes === 0) {
             return $this->failGracefully(
                 $row,
                 'media_download_failed',
