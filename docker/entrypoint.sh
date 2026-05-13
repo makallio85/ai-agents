@@ -1,8 +1,16 @@
 #!/bin/sh
-# Fix ownership of bind-mounted volumes before PHP-FPM starts.
-# The Dockerfile chown only applies to image layers; when Docker mounts
-# host directories over tmp/ and logs/, those host-side files may be
-# owned by root. Re-chowning here ensures www-data can write on every
-# container start, regardless of host ownership.
+# Ensure runtime directories exist and are writable by www-data.
+#
+# logs/ and tmp/ are gitignored, so they are absent on a fresh clone.
+# Creating them here (inside the container) creates them on the host too,
+# because the entire project is bind-mounted at /var/www/html.
+# Re-chowning every start also corrects root-owned files left by a root deploy.
+mkdir -p \
+    /var/www/html/logs \
+    /var/www/html/tmp/cache/models \
+    /var/www/html/tmp/cache/persistent \
+    /var/www/html/tmp/cache/views \
+    /var/www/html/tmp/sessions \
+    /var/www/html/tmp/tests
 chown -R www-data:www-data /var/www/html/tmp /var/www/html/logs
 exec "$@"
