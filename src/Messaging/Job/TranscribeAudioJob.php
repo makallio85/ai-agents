@@ -91,9 +91,14 @@ class TranscribeAudioJob implements JobInterface
 
         // 2. Transcribe.
         try {
+            // Prefer the MIME type stored on the row (from the original Slack
+            // webhook event's `mimetype` field) over the HTTP Content-Type
+            // returned by Slack's CDN download. The CDN often returns a generic
+            // 'application/octet-stream', which maps to extension '.bin' and
+            // causes Whisper to reject the file as an unsupported format.
             $result = $this->speech->transcribe(
                 audio: (string)($media['content'] ?? ''),
-                mimeType: (string)($media['mime'] ?? ($row->media_mime_type ?? 'application/octet-stream')),
+                mimeType: (string)($row->media_mime_type ?: ($media['mime'] ?? 'application/octet-stream')),
             );
         } catch (SpeechException $e) {
             return $this->failGracefully(
