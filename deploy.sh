@@ -31,6 +31,14 @@ EOF
 
 docker compose -f docker-compose.prod.yml down --remove-orphans || true
 
+# Delete host-side log and cache files that may be owned by root from a
+# previous deploy. PHP-FPM (www-data) recreates them on first write.
+# Without this, files created by root during the previous container run
+# remain root-owned and PHP-FPM can't write to them even after the chown
+# step below (which only runs at the end of deploy, not at startup).
+find "$APP_DIR/logs" -type f -delete 2>/dev/null || true
+find "$APP_DIR/tmp/cache" -type f -delete 2>/dev/null || true
+
 docker compose -f docker-compose.prod.yml up -d --build
 
 docker compose -f docker-compose.prod.yml exec -T app composer install --no-dev --optimize-autoloader
