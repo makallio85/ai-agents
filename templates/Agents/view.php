@@ -285,7 +285,9 @@ $this->assign('title', 'Agent details');
                             <div class="col-md-3">
                                 <label class="form-label small fw-medium">Bot user ID</label>
                                 <input v-model="slackForm.bot_user_id" type="text" class="form-control" placeholder="U0XXXXXXX" :disabled="savingSlack" />
-                                <div class="form-text small">App config &rarr; App-Level Tokens / OAuth — the bot user the App posts as.</div>
+                                <div class="form-text small">
+                                    Run <code>curl -s -H "Authorization: Bearer xoxb-your-token" https://slack.com/api/auth.test</code> — the <code>user_id</code> field is your Bot user ID. The response also contains <code>app_id</code> and <code>team_id</code>.
+                                </div>
                             </div>
                             <div class="col-md-3">
                                 <label class="form-label small fw-medium">Bot token <span class="text-muted">(leave blank to keep existing)</span></label>
