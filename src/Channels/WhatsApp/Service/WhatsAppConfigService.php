@@ -3,87 +3,78 @@ declare(strict_types=1);
 
 namespace App\Channels\WhatsApp\Service;
 
-use App\Model\Entity\Agent;
-use App\Model\Entity\AgentContext;
+use App\Channels\EncryptedConfigTrait;
+use App\Model\Entity\AgentWhatsAppConfig;
 use Cake\Core\Configure;
 use Cake\ORM\TableRegistry;
-use Cake\Utility\Security;
 
 /**
- * Reads and writes the WhatsApp configuration for each agent, stored as
- * key-value rows in agent_contexts under the 'whatsapp.*' namespace.
+ * Reads and writes per-agent WhatsApp configuration from agent_whatsapp_configs.
  *
- * Per-agent secrets (access_token) are encrypted at rest using Cake's
- * Security::encrypt with the application's encryption key, and decrypted
- * only when assembled into a WhatsAppAgentConfig DTO for a single transport
- * call. The Meta App secret is NOT per-agent — it is read from
- * Configure::read('Channels.whatsapp.appSecret').
+ * Replaces the previous agent_contexts key-value storage ('whatsapp.*' keys).
+ * The public API is unchanged — callers receive WhatsAppAgentConfig DTOs and
+ * call setForAgent() to persist. Only the storage layer changed.
+ *
+ * The global Meta App secret is NOT stored per-agent — it is read from
+ * Configure ('Channels.whatsapp.appSecret') and injected at DTO build time.
+ * access_token is encrypted at rest (via EncryptedConfigTrait).
  */
 class WhatsAppConfigService
 {
-    public const KEY_PHONE_NUMBER_ID = 'whatsapp.phone_number_id';
-    public const KEY_DISPLAY_NUMBER = 'whatsapp.display_number';
-    public const KEY_ACCESS_TOKEN = 'whatsapp.access_token';
-    public const KEY_WELCOME_TEMPLATE = 'whatsapp.welcome_template_name';
-    public const KEY_ENABLED = 'whatsapp.enabled';
-
-    private const ENCRYPTED_KEYS = [
-        self::KEY_ACCESS_TOKEN,
-    ];
+    use EncryptedConfigTrait;
 
     public function findConfigByAgentId(int $agentId): ?WhatsAppAgentConfig
     {
-        /** @var Agent|null $agent */
-        $agent = TableRegistry::getTableLocator()->get('Agents')
+        /** @var AgentWhatsAppConfig|null $row */
+        $row = TableRegistry::getTableLocator()->get('AgentWhatsAppConfigs')
             ->find()
-            ->contain(['AgentContexts'])
-            ->where(['Agents.id' => $agentId])
+            ->contain(['Agents'])
+            ->where(['AgentWhatsAppConfigs.agent_id' => $agentId])
             ->first();
-        if ($agent === null) {
-            return null;
-        }
-        return $this->buildFromAgent($agent);
+
+        return $row !== null ? $this->buildFromRow($row) : null;
     }
 
     public function findConfigByPhoneNumberId(string $phoneNumberId): ?WhatsAppAgentConfig
     {
-        $agentContexts = TableRegistry::getTableLocator()->get('AgentContexts');
-        /** @var AgentContext|null $hit */
-        $hit = $agentContexts->find()
-            ->where([
-                'context_key' => self::KEY_PHONE_NUMBER_ID,
-                'value' => $phoneNumberId,
-            ])
+        /** @var AgentWhatsAppConfig|null $row */
+        $row = TableRegistry::getTableLocator()->get('AgentWhatsAppConfigs')
+            ->find()
+            ->contain(['Agents'])
+            ->where(['AgentWhatsAppConfigs.phone_number_id' => $phoneNumberId])
             ->first();
-        if ($hit === null) {
-            return null;
-        }
-        return $this->findConfigByAgentId($hit->agent_id);
+
+        return $row !== null ? $this->buildFromRow($row) : null;
     }
 
     /**
-     * Returns the per-agent settings as a plain associative array suitable for
-     * the admin UI. Sensitive values are masked.
+     * Returns config values for the admin UI. Sensitive fields are masked.
      *
      * @return array{phone_number_id: ?string, display_number: ?string, access_token_set: bool, welcome_template_name: ?string, enabled: bool, has_global_app_secret: bool}
      */
     public function readForUi(int $agentId): array
     {
-        $values = $this->loadValues($agentId);
+        /** @var AgentWhatsAppConfig|null $row */
+        $row = TableRegistry::getTableLocator()->get('AgentWhatsAppConfigs')
+            ->find()
+            ->where(['agent_id' => $agentId])
+            ->first();
+
         return [
-            'phone_number_id' => $values[self::KEY_PHONE_NUMBER_ID] ?? null,
-            'display_number' => $values[self::KEY_DISPLAY_NUMBER] ?? null,
-            'access_token_set' => !empty($values[self::KEY_ACCESS_TOKEN]),
-            'welcome_template_name' => $values[self::KEY_WELCOME_TEMPLATE] ?? null,
-            'enabled' => ($values[self::KEY_ENABLED] ?? 'false') === 'true',
-            'has_global_app_secret' => trim((string)Configure::read('Channels.whatsapp.appSecret', '')) !== '',
+            'phone_number_id'      => $row?->phone_number_id,
+            'display_number'       => $row?->display_number,
+            'access_token_set'     => $row !== null && $row->access_token !== '',
+            'welcome_template_name'=> $row?->welcome_template_name,
+            'enabled'              => $row !== null && $row->enabled,
+            'has_global_app_secret'=> trim((string)Configure::read('Channels.whatsapp.appSecret', '')) !== '',
         ];
     }
 
     /**
-     * Writes config from the admin UI. accessToken is optional — if empty
-     * the existing value is left untouched (so the admin doesn't have to
-     * paste it back in on every edit).
+     * Creates or updates the WhatsApp config row for an agent.
+     *
+     * access_token is optional on update — if empty the existing encrypted
+     * value is kept so the admin does not have to paste it back on every save.
      */
     public function setForAgent(
         int $agentId,
@@ -93,101 +84,47 @@ class WhatsAppConfigService
         ?string $welcomeTemplateName,
         bool $enabled,
     ): void {
-        $this->upsert($agentId, self::KEY_PHONE_NUMBER_ID, $phoneNumberId);
-        $this->upsert($agentId, self::KEY_DISPLAY_NUMBER, $displayNumber);
+        $table = TableRegistry::getTableLocator()->get('AgentWhatsAppConfigs');
+
+        /** @var AgentWhatsAppConfig|null $existing */
+        $existing = $table->find()->where(['agent_id' => $agentId])->first();
+
+        $data = [
+            'agent_id'              => $agentId,
+            'phone_number_id'       => $phoneNumberId,
+            'display_number'        => $displayNumber,
+            'welcome_template_name' => $welcomeTemplateName,
+            'enabled'               => $enabled,
+        ];
+
         if ($accessToken !== null && $accessToken !== '') {
-            $this->upsert($agentId, self::KEY_ACCESS_TOKEN, $accessToken);
+            $data['access_token'] = $this->encrypt($accessToken);
         }
-        if ($welcomeTemplateName !== null) {
-            $this->upsert($agentId, self::KEY_WELCOME_TEMPLATE, $welcomeTemplateName);
+
+        if ($existing !== null) {
+            $table->patchEntity($existing, $data);
+            $table->saveOrFail($existing);
+        } else {
+            $entity = $table->newEntity($data);
+            $table->saveOrFail($entity);
         }
-        $this->upsert($agentId, self::KEY_ENABLED, $enabled ? 'true' : 'false');
     }
 
-    private function buildFromAgent(Agent $agent): ?WhatsAppAgentConfig
+    private function buildFromRow(AgentWhatsAppConfig $row): ?WhatsAppAgentConfig
     {
-        $values = [];
-        foreach (($agent->agent_contexts ?? []) as $ctx) {
-            if (!str_starts_with((string)$ctx->context_key, 'whatsapp.')) {
-                continue;
-            }
-            $values[$ctx->context_key] = $ctx->value;
-        }
         $appSecret = (string)Configure::read('Channels.whatsapp.appSecret', '');
-        if (
-            empty($values[self::KEY_PHONE_NUMBER_ID])
-            || empty($values[self::KEY_ACCESS_TOKEN])
-            || $appSecret === ''
-        ) {
+        if ($row->phone_number_id === '' || $row->access_token === '' || $appSecret === '') {
             return null;
         }
 
         return new WhatsAppAgentConfig(
-            agent: $agent,
-            phoneNumberId: (string)$values[self::KEY_PHONE_NUMBER_ID],
-            displayNumber: (string)($values[self::KEY_DISPLAY_NUMBER] ?? ''),
-            accessToken: $this->decrypt((string)$values[self::KEY_ACCESS_TOKEN]),
+            agent: $row->agent,
+            phoneNumberId: $row->phone_number_id,
+            displayNumber: $row->display_number,
+            accessToken: $this->decrypt($row->access_token),
             appSecret: $appSecret,
-            welcomeTemplateName: $values[self::KEY_WELCOME_TEMPLATE] ?? null,
-            enabled: ($values[self::KEY_ENABLED] ?? 'true') === 'true',
+            welcomeTemplateName: $row->welcome_template_name,
+            enabled: $row->enabled,
         );
-    }
-
-    /** @return array<string, string> */
-    private function loadValues(int $agentId): array
-    {
-        $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
-        $rows = $contexts->find()
-            ->where(['agent_id' => $agentId, 'context_key LIKE' => 'whatsapp.%'])
-            ->all();
-        $values = [];
-        foreach ($rows as $row) {
-            /** @var \App\Model\Entity\AgentContext $row */
-            $values[(string)$row->context_key] = (string)$row->value;
-        }
-        return $values;
-    }
-
-    private function upsert(int $agentId, string $key, string $value): void
-    {
-        $stored = in_array($key, self::ENCRYPTED_KEYS, true) ? $this->encrypt($value) : $value;
-        $contexts = TableRegistry::getTableLocator()->get('AgentContexts');
-        /** @var \App\Model\Entity\AgentContext|null $existing */
-        $existing = $contexts->find()->where(['agent_id' => $agentId, 'context_key' => $key])->first();
-        if ($existing !== null) {
-            $existing->value = $stored;
-            $contexts->saveOrFail($existing);
-            return;
-        }
-        $entity = $contexts->newEntity([
-            'agent_id' => $agentId,
-            'context_key' => $key,
-            'value' => $stored,
-        ]);
-        $contexts->saveOrFail($entity);
-    }
-
-    private function encryptionKey(): string
-    {
-        // Security::setSalt() is called in config/bootstrap.php via
-        // Configure::consume(), which removes 'Security.salt' from Configure.
-        // Reading Configure::read('Security.salt') would always return null here.
-        // Security::getSalt() is the reliable source after bootstrap.
-        return Security::getSalt();
-    }
-
-    private function encrypt(string $plain): string
-    {
-        return base64_encode(Security::encrypt($plain, $this->encryptionKey()));
-    }
-
-    private function decrypt(string $stored): string
-    {
-        $decoded = base64_decode($stored, true);
-        if ($decoded === false) {
-            return $stored;
-        }
-        $plain = Security::decrypt($decoded, $this->encryptionKey());
-        return $plain !== null ? $plain : $stored;
     }
 }

@@ -7,15 +7,13 @@ use App\Channels\Slack\Service\SlackConfigService;
 use Cake\TestSuite\TestCase;
 
 /**
- * Covers SlackConfigService save/read round-trip against a real test DB.
+ * Covers SlackConfigService save/read round-trip against the agent_slack_configs table.
  *
- * Bug reproduced: the agent_contexts table has a column named 'key' which is
- * a reserved word in MariaDB. CakePHP builds unquoted queries like
- * WHERE key LIKE 'slack.%' which throw SQLSTATE[42000] syntax errors.
- * The fix is to rename the column to 'context_key'.
- *
- * These tests must be RED before the column rename migration is applied
- * and GREEN after.
+ * After issue #15 refactor, config is stored in a dedicated structured table
+ * instead of the agent_contexts key-value store. Tests verify:
+ * - create path (no existing row)
+ * - update path (existing row, partial secret update)
+ * - empty-state defaults (no config row exists)
  */
 class SlackConfigServiceTest extends TestCase
 {
@@ -24,7 +22,7 @@ class SlackConfigServiceTest extends TestCase
      */
     protected array $fixtures = [
         'app.Agents',
-        'app.AgentContexts',
+        'app.AgentSlackConfigs',
     ];
 
     private SlackConfigService $service;
@@ -37,10 +35,6 @@ class SlackConfigServiceTest extends TestCase
 
     /**
      * Saving and immediately reading back config must return the saved values.
-     *
-     * Reproduces the reserved-word bug: setForAgent() calls upsert() which
-     * runs WHERE key = ? and INSERT with key column — both fail in MariaDB
-     * when 'key' is unquoted.
      */
     public function testSetForAgentPersistsAndReadsBack(): void
     {
@@ -66,8 +60,6 @@ class SlackConfigServiceTest extends TestCase
 
     /**
      * A second save must update existing rows, not create duplicates.
-     *
-     * Reproduces the same reserved-word bug on the UPDATE path of upsert().
      */
     public function testSetForAgentUpdatesExistingValues(): void
     {
