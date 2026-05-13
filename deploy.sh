@@ -31,13 +31,12 @@ EOF
 
 docker compose -f docker-compose.prod.yml down --remove-orphans || true
 
-# Delete host-side log and cache files that may be owned by root from a
-# previous deploy. PHP-FPM (www-data) recreates them on first write.
-# Without this, files created by root during the previous container run
-# remain root-owned and PHP-FPM can't write to them even after the chown
-# step below (which only runs at the end of deploy, not at startup).
-find "$APP_DIR/logs" -type f -delete 2>/dev/null || true
-find "$APP_DIR/tmp/cache" -type f -delete 2>/dev/null || true
+# Fix ownership on the host before the container starts so PHP-FPM
+# (www-data, uid=33 in the Debian-based image) can write to logs/ and
+# tmp/cache/ from the very first request. The chown at the end of this
+# script runs too late — PHP-FPM has already started and created files
+# as root by then.
+chown -R 33:33 "$APP_DIR/logs" "$APP_DIR/tmp" 2>/dev/null || true
 
 docker compose -f docker-compose.prod.yml up -d --build
 
