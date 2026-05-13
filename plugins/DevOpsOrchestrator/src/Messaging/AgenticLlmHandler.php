@@ -131,11 +131,12 @@ class AgenticLlmHandler implements MessageHandlerInterface
                 'error',
                 ['scope' => 'agentic_llm_handler', 'execution_id' => $executionId],
             );
-            $this->dispatcher->reply($session, "I encountered an error while processing your request. Please try again.");
+            $this->dispatcher->reply($session, "I encountered an error while processing your request. Please try again.", $inbound);
             return;
         }
 
-        $outbound = $this->dispatcher->reply($fullSession, $llmResponse->content);
+        // Pass $inbound so the outbound metadata carries inbound_thread_id for correct Slack threading.
+        $outbound = $this->dispatcher->reply($fullSession, $llmResponse->content, $inbound);
 
         $outbound->tokens_used = $llmResponse->tokensUsed;
         $outbound->model_used = $llmResponse->model;

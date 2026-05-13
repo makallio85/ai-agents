@@ -62,7 +62,8 @@ class LlmHandler implements MessageHandlerInterface
         $response = $this->llmService->complete($agent, $history, $executionId, $session->user_id);
 
         // Persist token / model attribution against the outbound row that the dispatcher creates.
-        $outbound = $this->dispatcher->reply($fullSession, $response->content);
+        // Pass $inbound so the outbound metadata carries inbound_thread_id for correct Slack threading.
+        $outbound = $this->dispatcher->reply($fullSession, $response->content, $inbound);
         if ($response->tokensUsed !== null || $response->model !== null) {
             $outbound->tokens_used = $response->tokensUsed;
             $outbound->model_used = $response->model;

@@ -55,7 +55,7 @@ class SlackTransport implements ChannelTransportInterface
             throw new SlackException("Slack is not configured / enabled for agent {$session->agent_id}");
         }
         $channelId = $this->resolveChannelId($session, $config->botToken);
-        $threadTs = $this->resolveThreadTs($session);
+        $threadTs = $this->resolveThreadTs($session, $message);
         $response = $this->client->postMessage($config->botToken, $channelId, $message->body, $threadTs);
         return $this->buildResult($response);
     }
@@ -273,8 +273,28 @@ class SlackTransport implements ChannelTransportInterface
         return $this->client->openConversation($botToken, $slackUserId);
     }
 
-    private function resolveThreadTs(ChatSession $session): ?string
+    /**
+     * Resolves the Slack thread_ts to use for an outbound reply.
+     *
+     * Preferred path: the outbound message's metadata carries 'inbound_thread_id',
+     * written by MessageDispatcher::reply() at reply-creation time from the
+     * triggering inbound ChatMessage. Using this stored value avoids the race
+     * condition where a second user message arrives after the reply is queued
+     * but before SendMessageJob runs — in that case, re-querying for the latest
+     * inbound would return the second message's thread_ts and the reply would
+     * appear in the wrong Slack thread.
+     *
+     * Fallback: if no 'inbound_thread_id' is in metadata (legacy rows or proactive
+     * sends), the previous behaviour of querying for the latest inbound is used.
+     */
+    private function resolveThreadTs(ChatSession $session, OutboundMessage $message): ?string
     {
+        $storedThreadId = $message->metadata['inbound_thread_id'] ?? null;
+        if (is_string($storedThreadId) && $storedThreadId !== '') {
+            return $storedThreadId;
+        }
+
+        // Legacy fallback: query for the latest inbound's thread_ts.
         $messages = TableRegistry::getTableLocator()->get('ChatMessages');
         $latestInbound = $messages->find()
             ->where([

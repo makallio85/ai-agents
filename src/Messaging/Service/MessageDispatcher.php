@@ -36,10 +36,36 @@ class MessageDispatcher
 
     /**
      * Agent reply path. Persists an outbound assistant message and queues delivery.
+     *
+     * $triggeringInbound should be the ChatMessage that caused this reply to be
+     * generated. When supplied and the inbound has an external_thread_id, that
+     * value is stored in the outbound message's metadata under 'inbound_thread_id'
+     * so that asynchronous channel transports (e.g. SlackTransport) can use it
+     * at send time without re-querying the DB. This prevents the race condition
+     * where a second inbound arrives between reply creation and delivery, causing
+     * the transport to pick up the wrong thread_ts and post the reply in the
+     * wrong thread.
      */
-    public function reply(ChatSession $session, string|OutboundMessage $message): ChatMessage
-    {
+    public function reply(
+        ChatSession $session,
+        string|OutboundMessage $message,
+        ?ChatMessage $triggeringInbound = null,
+    ): ChatMessage {
         $payload = is_string($message) ? OutboundMessage::text($message) : $message;
+
+        // Attach the triggering inbound's thread id to the outbound metadata so
+        // channel transports can route to the correct thread asynchronously.
+        if (
+            $triggeringInbound !== null
+            && !empty($triggeringInbound->external_thread_id)
+        ) {
+            $merged = array_merge(
+                $payload->metadata,
+                ['inbound_thread_id' => $triggeringInbound->external_thread_id],
+            );
+            $payload = new OutboundMessage($payload->body, $payload->contentType, $merged);
+        }
+
         return $this->persistAndEnqueue(
             $session,
             $payload,
