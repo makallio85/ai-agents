@@ -61,8 +61,9 @@ for plugin_dir in "$APP_DIR"/plugins/*/; do
     fi
 done
 
-docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations seed --seed InitialDataSeed
-docker compose -f docker-compose.prod.yml exec -T app bin/cake migrations seed --seed AdminUserSeed
+# cakephp/migrations v5 uses positional arguments: `seeds run <Name>`
+docker compose -f docker-compose.prod.yml exec -T app bin/cake seeds run InitialDataSeed
+docker compose -f docker-compose.prod.yml exec -T app bin/cake seeds run AdminUserSeed
 
 docker compose -f docker-compose.prod.yml exec -T app bin/cake cache clear_all
 
