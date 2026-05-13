@@ -110,8 +110,17 @@ class SlackClient implements SlackClientInterface
         if ($raw === false || !is_string($raw)) {
             throw new SlackException("Slack file download failed: no response from {$url}");
         }
+
+        $rawHeaders = substr($raw, 0, $headerSize);
+        $body       = substr($raw, $headerSize);
+        $mime       = self::extractContentType($rawHeaders);
+
+        // Throw with full diagnostics so TranscribeAudioJob logs the real cause.
         if ($httpCode >= 400) {
-            throw new SlackException("Slack file download HTTP error {$httpCode}", $httpCode);
+            throw new SlackException(
+                "Slack file download HTTP {$httpCode} — mime={$mime} redirect={$redirectUrl} body_start=" . bin2hex(substr($body, 0, 16)),
+                $httpCode
+            );
         }
 
         // If Slack redirected us to a CDN URL, download from there without
@@ -120,10 +129,16 @@ class SlackClient implements SlackClientInterface
             return $this->curlGet($redirectUrl);
         }
 
-        // Slack served the file directly (no redirect).
-        $rawHeaders = substr($raw, 0, $headerSize);
-        $bytes = substr($raw, $headerSize);
-        return ['content' => $bytes, 'mime' => self::extractContentType($rawHeaders)];
+        // Log what Slack actually returned so we can diagnose auth issues.
+        // If mime is text/html here Slack returned its login page (HTTP 200)
+        // meaning the bot token is missing files:read scope.
+        if (stripos($mime, 'text/html') !== false) {
+            throw new SlackException(
+                "Slack returned HTML instead of audio — HTTP {$httpCode}, redirect_url=" . ($redirectUrl ?: 'none') . ", token_prefix=" . substr($botToken, 0, 12)
+            );
+        }
+
+        return ['content' => $body, 'mime' => $mime];
     }
 
     /**
