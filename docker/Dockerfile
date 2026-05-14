@@ -44,9 +44,19 @@ COPY docker/php.ini          /usr/local/etc/php/conf.d/app.ini
 
 WORKDIR /var/www/html
 
-# Composer install — separate layer cached when composer.lock unchanged
+# Composer install — separate layer cached when composer.lock unchanged.
+#
+# INSTALL_DEV controls whether require-dev packages (DebugKit, phpunit, phpstan,
+# bake) ship with the image. Default = true (install everything), suitable for
+# dev/preview deployments. Prod tier should set --build-arg INSTALL_DEV=false
+# to slim the image and avoid shipping debug tooling to customer traffic.
+ARG INSTALL_DEV=true
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-interaction --no-scripts --optimize-autoloader
+RUN if [ "$INSTALL_DEV" = "true" ]; then \
+        composer install --no-interaction --no-scripts --optimize-autoloader; \
+    else \
+        composer install --no-dev --no-interaction --no-scripts --optimize-autoloader; \
+    fi
 
 # App code + built frontend assets
 COPY . .
@@ -55,7 +65,8 @@ COPY --from=frontend /build/webroot/build /var/www/html/webroot/build
 # Run post-install scripts now that the full app is in place
 RUN composer run-script post-install-cmd --no-interaction || true
 
-RUN chown -R www-data:www-data tmp logs \
+RUN mkdir -p tmp logs \
+    && chown -R www-data:www-data tmp logs \
     && chmod -R 775 tmp logs
 
 # Entrypoint waits for DB, runs migrations if RUN_MIGRATIONS=true, then exec's CMD.
