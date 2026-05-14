@@ -38,6 +38,7 @@ class AppView extends View
      */
     public function initialize(): void
     {
+        $this->addHelper('Vite');
         // Load the authentication Identity helper so templates can access the
         // current user via $this->Identity->get('field'). The helper is provided
         // by the cakephp/authentication plugin and wraps the Identity result object.
