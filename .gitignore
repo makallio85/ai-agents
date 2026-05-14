@@ -52,7 +52,6 @@ yarn-debug.log
 yarn-error.log
 # npm
 npm-debug.log
-package-lock.json
 # Vite build output
 /webroot/build/*
 # Docker env overrides
