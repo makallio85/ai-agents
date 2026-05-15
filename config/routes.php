@@ -65,7 +65,12 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index']);
         $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
         $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index']);
-        $builder->connect('/messaging-guests', ['controller' => 'MessagingGuests', 'action' => 'index']);
+        $builder->connect('/integrations', ['controller' => 'Integrations', 'action' => 'index']);
+        $builder->connect('/users', ['controller' => 'Users', 'action' => 'index']);
+        $builder->connect('/messaging-requests', ['controller' => 'MessagingRequests', 'action' => 'index']);
+        // Backwards-compat redirect: /messaging-guests was renamed to
+        // /messaging-requests in issue #14 to match the new nav label.
+        $builder->redirect('/messaging-guests', '/messaging-requests');
         $builder->connect('/settings/permissions', ['controller' => 'Settings', 'action' => 'permissions']);
         $builder->connect('/profile', ['controller' => 'Profile', 'action' => 'index']);
 
