@@ -113,10 +113,17 @@ var Api = (function () {
         update: function (id, data) { return _coreRequest('PUT', 'agents/update/' + id, data); },
         del: function (id) { return _coreRequest('DELETE', 'agents/delete/' + id); },
         logs: function (id) { return _coreRequest('GET', 'agents/logs/' + id); },
-        whatsappConfig: function (id) { return _coreRequest('GET', 'agents/whatsapp-config/' + id); },
-        updateWhatsappConfig: function (id, data) { return _coreRequest('POST', 'agents/whatsapp-config/' + id, data); },
-        slackConfig: function (id) { return _coreRequest('GET', 'agents/slack-config/' + id); },
-        updateSlackConfig: function (id, data) { return _coreRequest('POST', 'agents/slack-config/' + id, data); },
+    };
+
+    /**
+     * Message channels — unified per-agent channel configuration endpoint
+     * (issue #15). list() returns every registered channel's admin payload
+     * in one round-trip; update() persists a single channel's config keyed
+     * by type ("slack", "whatsapp", ...).
+     */
+    var messageChannels = {
+        list:   function (agentId)             { return _coreRequest('GET', 'message-channels/' + agentId); },
+        update: function (agentId, type, data) { return _coreRequest('POST', 'message-channels/update/' + agentId + '/' + type, data); },
     };
 
     var users = {
@@ -259,6 +266,7 @@ var Api = (function () {
         createNamespace: createNamespace,
         auth: auth,
         agents: agents,
+        messageChannels: messageChannels,
         users: users,
         labels: labels,
         logs: logs,
