@@ -215,9 +215,22 @@
 
             // ── Init ──────────────────────────────────────────────────
 
+            // If the page is opened as /chat?agent_id=N (from the "Start chat"
+            // button on the Agents view page added in issue #14), create a
+            // fresh session against that agent immediately after agents and
+            // sessions are loaded.
+            function maybeAutoStartFromQuery() {
+                var params = new URLSearchParams(window.location.search);
+                var raw = params.get('agent_id');
+                if (!raw) { return; }
+                var id = parseInt(raw, 10);
+                if (!id) { return; }
+                selectedAgentId.value = id;
+                startSession();
+            }
+
             onMounted(function () {
-                loadSessions();
-                loadAgents();
+                Promise.all([loadSessions(), loadAgents()]).then(maybeAutoStartFromQuery);
             });
 
             return {

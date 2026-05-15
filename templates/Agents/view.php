@@ -22,7 +22,11 @@ $this->assign('title', 'Agent details');
             <span class="badge ms-2" :class="agent.is_enabled ? 'bg-success' : 'bg-secondary'">
                 {{ agent.is_enabled ? 'Active' : 'Inactive' }}
             </span>
-            <button class="btn btn-sm btn-outline-primary ms-auto" @click="toggleEdit">
+            <a :href="'<?= $this->Url->build('/chat') ?>?agent_id=' + agent.id"
+               class="btn btn-sm btn-primary ms-auto">
+                <i class="bi bi-chat-dots me-1"></i> Start chat
+            </a>
+            <button class="btn btn-sm btn-outline-primary ms-2" @click="toggleEdit">
                 <i class="bi" :class="editing ? 'bi-x-lg' : 'bi-pencil'"></i>
                 {{ editing ? 'Cancel' : 'Edit' }}
             </button>
