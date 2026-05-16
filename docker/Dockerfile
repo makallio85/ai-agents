@@ -35,6 +35,24 @@ RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     && docker-php-ext-enable redis \
     && apk del .build-deps
 
+# Agent tooling baked into every image (prod + dev). The agent runs claude
+# inside the live preview container; gh authenticates via the operator's
+# host-mounted ~/.config/gh. Bash so `docker exec -u www-data` lands in a
+# usable shell.
+RUN apk add --no-cache bash nodejs npm github-cli ripgrep \
+    && npm install -g @anthropic-ai/claude-code \
+    && npm cache clean --force
+
+# Re-UID www-data from alpine's default 82 to 1000 so host bind mounts (where
+# the operator's ~/.claude etc. are owned by uid 1000) are readable as
+# www-data inside the container without userns remapping. Also give it a real
+# shell + home dir so `docker exec -u www-data` is usable for the agent.
+RUN sed -i 's|^www-data:.*|www-data:x:1000:1000::/home/www-data:/bin/bash|' /etc/passwd \
+    && sed -i 's|^www-data:x:82:|www-data:x:1000:|' /etc/group \
+    && mkdir -p /home/www-data/.config \
+    && chown -R 1000:1000 /home/www-data \
+    && find / -xdev \( -uid 82 -o -gid 82 \) -exec chown 1000:1000 {} + 2>/dev/null || true
+
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 COPY docker/nginx.conf       /etc/nginx/http.d/default.conf
@@ -62,7 +80,7 @@ COPY --from=frontend /build/webroot/build /var/www/html/webroot/build
 
 RUN composer run-script post-install-cmd --no-interaction || true \
     && mkdir -p tmp logs \
-    && chown -R www-data:www-data tmp logs \
+    && chown -R www-data:www-data /var/www/html \
     && chmod -R 775 tmp logs
 
 # ───────────────────────── 4. Development image ─────────────────────────
@@ -81,5 +99,5 @@ COPY --from=frontend /build/webroot/build /var/www/html/webroot/build
 
 RUN composer run-script post-install-cmd --no-interaction || true \
     && mkdir -p tmp logs \
-    && chown -R www-data:www-data tmp logs \
+    && chown -R www-data:www-data /var/www/html \
     && chmod -R 775 tmp logs
