@@ -11,6 +11,7 @@ use App\Messaging\Service\MessageDispatcher;
 use App\Model\Entity\Agent;
 use App\Model\Entity\ChatSession;
 use App\Model\Entity\User;
+use App\Service\AgentIntegrationPermissionService;
 use App\Service\AgentLogService;
 use App\Service\AgentTools\AgentLoopService;
 use App\Service\AgentTools\GitHubToolProvider;
@@ -40,14 +41,17 @@ class ChatController extends AppController
     private ChatSessionService $chatSessionService;
     private LlmService $llmService;
     private MessageDispatcher $dispatcher;
+    private AgentLogService $logService;
+    private AgentIntegrationPermissionService $permissionService;
 
     public function initialize(): void
     {
         parent::initialize();
-        $logService = new AgentLogService();
+        $this->logService = new AgentLogService();
         $this->chatSessionService = new ChatSessionService();
-        $this->llmService = new LlmService(new LlmClientFactory(), $logService);
+        $this->llmService = new LlmService(new LlmClientFactory(), $this->logService);
         $this->dispatcher = new MessageDispatcher();
+        $this->permissionService = new AgentIntegrationPermissionService();
     }
 
     /**
@@ -253,16 +257,31 @@ class ChatController extends AppController
             $history = $this->chatSessionService->buildMessageHistory($session);
             $userId = $user->id;
 
-            // DevOpsOrchestrator agents with OpenAI always run the agentic tool-calling loop.
-            // The GitHub token is sourced from the authenticated user's active integration —
-            // no need to store it redundantly in agent_contexts.
+            // DevOpsOrchestrator agents with OpenAI run the agentic tool-calling loop,
+            // but only when the agent has been granted at least one github.* action
+            // permission (issue #9 — deny-all default at the integration-access level).
+            // The GitHub token is sourced from the authenticated user's active
+            // integration — no need to store it redundantly in agent_contexts.
             $githubToken = $this->loadUserGithubToken($user->id);
+            $permissionSet = $this->permissionService->loadForAgent($agent->id);
+            $hasGithubPermission = $permissionSet->hasAnyForIntegration(
+                AgentIntegrationPermissionService::INTEGRATION_GITHUB,
+            );
             $useAgentLoop = $agent->plugin === 'DevOpsOrchestrator'
                 && $agent->llm_provider === 'openai'
-                && $githubToken !== null;
+                && $githubToken !== null
+                && $hasGithubPermission;
 
             if ($useAgentLoop) {
-                $llmResponse = $this->runAgentLoop($agent, $history, $executionId, $githubToken, $assembledContent);
+                $llmResponse = $this->runAgentLoop(
+                    $agent,
+                    $history,
+                    $executionId,
+                    $githubToken,
+                    $permissionSet,
+                    $userId,
+                    $assembledContent,
+                );
             } else {
                 $llmResponse = $this->llmService->stream(
                     $agent,
@@ -530,6 +549,8 @@ class ChatController extends AppController
         array $history,
         string $executionId,
         string $githubToken,
+        \App\Service\AgentPermissionSet $permissionSet,
+        int $userId,
         string &$assembledContent,
     ): \App\Integration\Llm\LlmResponse {
         $apiKey = (string)(Configure::read('Llm.openaiApiKey') ?? env('OPENAI_API_KEY', ''));
@@ -538,8 +559,19 @@ class ChatController extends AppController
         $githubApiUrl = (string)(Configure::read('GitHub.apiUrl') ?? env('GITHUB_API_URL', 'https://api.github.com'));
         $githubClient = new GitHubClient($githubToken, $githubApiUrl);
 
-        $toolProvider = new GitHubToolProvider($githubClient);
-        $loopService = new AgentLoopService($openAiClient, $toolProvider);
+        $toolProvider = new GitHubToolProvider(
+            $githubClient,
+            $permissionSet,
+            $this->permissionService,
+        );
+        $loopService = new AgentLoopService(
+            $openAiClient,
+            $toolProvider,
+            $this->logService,
+            $agent->id,
+            $userId,
+            $executionId,
+        );
 
         // Prepend system prompt (same logic as LlmService::buildMessages)
         $messages = $this->buildAgentMessages($agent, $history);
