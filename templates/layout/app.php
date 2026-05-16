@@ -54,6 +54,14 @@
             letter-spacing: .08em;
             color: #6c757d;
         }
+        .sidebar .nav-link.sub {
+            padding-left: 3rem;
+            font-size: .85rem;
+        }
+        .sidebar .nav-link.sub-2 {
+            padding-left: 4.25rem;
+            font-size: .8rem;
+        }
 
         .main-content {
             margin-left: 240px;
@@ -80,43 +88,58 @@
     <a href="<?= $this->Url->build('/dashboard') ?>" class="brand">
         🤖 AI Agents
     </a>
+    <?php
+        // Nav structure (issue #14):
+        //   Dashboard, Agents,
+        //   User Management → Users / Permissions / Messaging Requests,
+        //   Integrations → GitHub → Labels,
+        //   Logging
+        $controller = $this->request->getParam('controller');
+        $action = $this->request->getParam('action');
+    ?>
     <div class="mt-2">
-        <div class="nav-section">Main</div>
         <a href="<?= $this->Url->build('/dashboard') ?>"
-           class="nav-link <?= $this->request->getParam('action') === 'index' && $this->request->getParam('controller') === 'Dashboard' ? 'active' : '' ?>">
+           class="nav-link <?= $controller === 'Dashboard' && $action === 'index' ? 'active' : '' ?>">
             <i class="bi bi-speedometer2"></i> Dashboard
         </a>
 
-        <div class="nav-section">Agents</div>
         <a href="<?= $this->Url->build('/agents') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'Agents' ? 'active' : '' ?>">
+           class="nav-link <?= $controller === 'Agents' ? 'active' : '' ?>">
             <i class="bi bi-cpu"></i> Agents
         </a>
-        <a href="<?= $this->Url->build('/chat') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'Chat' ? 'active' : '' ?>">
-            <i class="bi bi-robot"></i> Chat
+
+        <div class="nav-section">User Management</div>
+        <a href="<?= $this->Url->build('/users') ?>"
+           class="nav-link sub <?= $controller === 'Users' ? 'active' : '' ?>">
+            <i class="bi bi-person"></i> Users
         </a>
-        <a href="<?= $this->Url->build('/messaging-guests') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'MessagingGuests' ? 'active' : '' ?>">
-            <i class="bi bi-people"></i> Messaging Guests
+        <a href="<?= $this->Url->build('/settings/permissions') ?>"
+           class="nav-link sub <?= $controller === 'Settings' ? 'active' : '' ?>">
+            <i class="bi bi-shield-lock"></i> Permissions
+        </a>
+        <a href="<?= $this->Url->build('/messaging-requests') ?>"
+           class="nav-link sub <?= $controller === 'MessagingRequests' ? 'active' : '' ?>">
+            <i class="bi bi-people"></i> Messaging Requests
         </a>
 
-        <div class="nav-section">Settings</div>
+        <div class="nav-section">Integrations</div>
+        <a href="<?= $this->Url->build('/integrations') ?>"
+           class="nav-link sub <?= $controller === 'Integrations' ? 'active' : '' ?>">
+            <i class="bi bi-grid-3x3-gap"></i> All integrations
+        </a>
         <a href="<?= $this->Url->build('/github-integrations') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'GithubIntegrations' ? 'active' : '' ?>">
+           class="nav-link sub <?= $controller === 'GithubIntegrations' ? 'active' : '' ?>">
             <i class="bi bi-github"></i> GitHub
         </a>
         <a href="<?= $this->Url->build('/labels') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'Labels' ? 'active' : '' ?>">
+           class="nav-link sub-2 <?= $controller === 'Labels' ? 'active' : '' ?>">
             <i class="bi bi-tags"></i> Labels
         </a>
+
+        <div class="nav-section">Logging</div>
         <a href="<?= $this->Url->build('/logs') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'Logs' ? 'active' : '' ?>">
+           class="nav-link <?= $controller === 'Logs' ? 'active' : '' ?>">
             <i class="bi bi-journal-text"></i> Logs
-        </a>
-        <a href="<?= $this->Url->build('/settings/permissions') ?>"
-           class="nav-link <?= $this->request->getParam('controller') === 'Settings' ? 'active' : '' ?>">
-            <i class="bi bi-shield-lock"></i> Permissions
         </a>
     </div>
     <div class="mt-auto border-top border-secondary p-3">

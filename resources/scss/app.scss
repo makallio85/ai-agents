@@ -1,0 +1,15 @@
+// Global styles — small reset + base typography.
+// Component-scoped styles live next to their Vue components.
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+    color: #1f2937;
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+            Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}

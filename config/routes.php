@@ -65,7 +65,12 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/github-integrations', ['controller' => 'GithubIntegrations', 'action' => 'index']);
         $builder->connect('/logs', ['controller' => 'Logs', 'action' => 'index']);
         $builder->connect('/chat', ['controller' => 'Chat', 'action' => 'index']);
-        $builder->connect('/messaging-guests', ['controller' => 'MessagingGuests', 'action' => 'index']);
+        $builder->connect('/integrations', ['controller' => 'Integrations', 'action' => 'index']);
+        $builder->connect('/users', ['controller' => 'Users', 'action' => 'index']);
+        $builder->connect('/messaging-requests', ['controller' => 'MessagingRequests', 'action' => 'index']);
+        // Backwards-compat redirect: /messaging-guests was renamed to
+        // /messaging-requests in issue #14 to match the new nav label.
+        $builder->redirect('/messaging-guests', '/messaging-requests');
         $builder->connect('/settings/permissions', ['controller' => 'Settings', 'action' => 'permissions']);
         $builder->connect('/profile', ['controller' => 'Profile', 'action' => 'index']);
 
@@ -91,12 +96,12 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/agents/update/{id}', ['controller' => 'Agents', 'action' => 'update'], ['_name' => 'api.v1.agents.update', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/agents/delete/{id}', ['controller' => 'Agents', 'action' => 'delete'], ['_name' => 'api.v1.agents.delete', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/agents/logs/{id}', ['controller' => 'Agents', 'action' => 'logs'], ['_name' => 'api.v1.agents.logs', 'id' => '\d+', 'pass' => ['id']]);
-        // Per-agent WhatsApp configuration (admin/superuser only via chat:configure)
-        $builder->connect('/agents/whatsapp-config/{id}', ['controller' => 'Agents', 'action' => 'whatsappConfig'], ['_method' => 'GET', '_name' => 'api.v1.agents.whatsapp_config', 'id' => '\d+', 'pass' => ['id']]);
-        $builder->connect('/agents/whatsapp-config/{id}', ['controller' => 'Agents', 'action' => 'updateWhatsappConfig'], ['_method' => 'POST', '_name' => 'api.v1.agents.update_whatsapp_config', 'id' => '\d+', 'pass' => ['id']]);
-        // Per-agent Slack configuration (admin/superuser via chat:configure)
-        $builder->connect('/agents/slack-config/{id}', ['controller' => 'Agents', 'action' => 'slackConfig'], ['_method' => 'GET', '_name' => 'api.v1.agents.slack_config', 'id' => '\d+', 'pass' => ['id']]);
-        $builder->connect('/agents/slack-config/{id}', ['controller' => 'Agents', 'action' => 'updateSlackConfig'], ['_method' => 'POST', '_name' => 'api.v1.agents.update_slack_config', 'id' => '\d+', 'pass' => ['id']]);
+        // Per-agent message channels (Slack, WhatsApp, ...) — unified surface
+        // for the "MessageChannels" concept (issue #15). MessageChannelsController
+        // delegates to MessageChannelRegistry so new channel types appear without
+        // touching the routes file.
+        $builder->connect('/message-channels/{id}', ['controller' => 'MessageChannels', 'action' => 'index'], ['_method' => 'GET', '_name' => 'api.v1.message_channels.index', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/message-channels/update/{id}/{type}', ['controller' => 'MessageChannels', 'action' => 'update'], ['_method' => 'POST', '_name' => 'api.v1.message_channels.update', 'id' => '\d+', 'type' => '[a-z0-9_-]+', 'pass' => ['id', 'type']]);
 
         // Users — approval workflow (and minimal admin listing)
         $builder->connect('/users', ['controller' => 'Users', 'action' => 'index'], ['_name' => 'api.v1.users.index']);

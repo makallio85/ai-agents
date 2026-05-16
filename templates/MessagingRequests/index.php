@@ -2,20 +2,20 @@
 /**
  * @var \App\View\AppView $this
  *
- * Admin page for reviewing and approving messaging guest users across
- * channels (WhatsApp, Slack, future).
+ * Admin page for reviewing and approving incoming messaging requests from
+ * external channels (WhatsApp, Slack, future).
  *
- * Vue app at #messaging-guests-app fetches /api/v1/users with optional
+ * Vue app at #messaging-requests-app fetches /api/v1/users with optional
  * approval_state and role filters, and exposes approve/reject buttons.
  * Approval is gated server-side by users:approve (administrator + superuser).
  */
-$this->assign('title', 'Messaging Guests');
+$this->assign('title', 'Messaging Requests');
 ?>
 
-<div id="messaging-guests-app" v-cloak>
+<div id="messaging-requests-app" v-cloak>
     <div class="d-flex align-items-center mb-3">
         <div>
-            <h5 class="mb-0">Messaging Guests</h5>
+            <h5 class="mb-0">Messaging Requests</h5>
             <small class="text-muted">Approve or reject senders that messaged your agents from external channels.</small>
         </div>
         <div class="ms-auto btn-group btn-group-sm">
@@ -102,4 +102,4 @@ $this->assign('title', 'Messaging Guests');
     </div>
 </div>
 
-<?php $this->append('script', $this->Html->script('vue/pages/MessagingGuests/index')); ?>
+<?php $this->append('script', $this->Html->script('vue/pages/MessagingRequests/index')); ?>

@@ -1,107 +1,116 @@
+# docker-compose.yml — Coolify-ready stack for CakePHP 5 + Vue 3 + MariaDB + Redis.
+#
+# Each Coolify deployment (main dev branch + per-PR preview) gets its own
+# complete, isolated stack. Branches cannot corrupt each other's data.
+#
+# BUILD_TARGET picks the Dockerfile stage:
+#   BUILD_TARGET=dev   → xdebug + dev composer deps (Coolify dev app)
+#   BUILD_TARGET=prod  → no xdebug, --no-dev (Coolify prod app; default)
+# new-coolify-app.sh sets BUILD_TARGET per environment automatically.
+#
+# Coolify auto-injects:
+#   SERVICE_FQDN_APP     — public URL of this deployment
+#   SERVICE_NAME_<NAME>  — suffixed service names so previews talk to siblings
+#   COOLIFY_RESOURCE_UUID — unique-per-app build tag
+#
+# Required env vars (set in Coolify UI, mark passwords as secret):
+#   DB_PASSWORD, REDIS_PASSWORD, SECURITY_SALT
+# Optional with sensible defaults:
+#   DB_NAME, DB_USER, CAKE_ENV, DEBUG
+#
+# Local dev uses docker-compose.override.yml (auto-loaded by `docker compose
+# up`, ignored by Coolify which runs `-f docker-compose.yml` only).
+
 services:
   app:
     build:
       context: .
-      dockerfile: docker/Dockerfile.dev
-    container_name: ai_agents_app
-    volumes:
-      - .:/var/www/html
-      - ./docker/php.ini:/usr/local/etc/php/conf.d/app.ini
+      dockerfile: docker/Dockerfile
+      target: ${BUILD_TARGET:-prod}
+    image: ${COOLIFY_RESOURCE_UUID:-local}-app:${BUILD_TARGET:-prod}
     environment:
-      - APP_ENV=development
-      - DB_HOST=db
+      - SERVICE_FQDN_APP=/
+      - CAKE_ENV=${CAKE_ENV:-development}
+      - DEBUG=${DEBUG:-true}
+      - SECURITY_SALT=${SECURITY_SALT}
+      - DB_HOST=${SERVICE_NAME_DB:-db}
       - DB_PORT=3306
-      - DB_NAME=ai_agents
-      - DB_USERNAME=ai_agents
-      - DB_PASSWORD=secret
-      - DB_TEST_NAME=ai_agents_test
-      - REDIS_HOST=redis
+      - DB_NAME=${DB_NAME:-app}
+      - DB_USER=${DB_USER:-app}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=${SERVICE_NAME_REDIS:-redis}
       - REDIS_PORT=6379
-      - QUEUE_DSN=redis://redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - RUN_MIGRATIONS=true
+    expose:
+      - "80"
+    mem_limit: 512m
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_started
-    networks:
-      - ai_agents_network
+    healthcheck:
+      # Accept any 1xx/2xx/3xx/4xx — connect failure (000) must NOT count as healthy.
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w %{http_code} http://localhost/ | grep -qE '^[1-4][0-9][0-9]$$'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
 
-  nginx:
-    image: nginx:alpine
-    container_name: ai_agents_nginx
-    ports:
-      - "8080:80"
-    volumes:
-      - .:/var/www/html
-      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf
+  worker:
+    # Reuses the app image so we only build once.
+    image: ${COOLIFY_RESOURCE_UUID:-local}-app:${BUILD_TARGET:-prod}
+    command: ["sh", "-c", "while true; do php bin/cake queue worker --quiet --verbose || sleep 10; done"]
+    environment:
+      - CAKE_ENV=${CAKE_ENV:-development}
+      - DEBUG=${DEBUG:-true}
+      - SECURITY_SALT=${SECURITY_SALT}
+      - DB_HOST=${SERVICE_NAME_DB:-db}
+      - DB_PORT=3306
+      - DB_NAME=${DB_NAME:-app}
+      - DB_USER=${DB_USER:-app}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - REDIS_HOST=${SERVICE_NAME_REDIS:-redis}
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - RUN_MIGRATIONS=false
+    mem_limit: 256m
     depends_on:
-      - app
-    networks:
-      - ai_agents_network
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   db:
     image: mariadb:11
-    container_name: ai_agents_db
     environment:
-      MYSQL_ROOT_PASSWORD: root_secret
-      MYSQL_DATABASE: ai_agents
-      MYSQL_USER: ai_agents
-      MYSQL_PASSWORD: secret
+      MARIADB_DATABASE: ${DB_NAME:-app}
+      MARIADB_USER: ${DB_USER:-app}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
-    ports:
-      - "3307:3306"
+    mem_limit: 512m
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "mariadb-admin ping -h localhost -p${DB_PASSWORD} || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
-    networks:
-      - ai_agents_network
+      retries: 10
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
-    container_name: ai_agents_redis
-    ports:
-      - "6380:6379"
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
-    networks:
-      - ai_agents_network
-
-  queue-worker:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.dev
-    container_name: ai_agents_queue_worker
-    command: php /var/www/html/bin/cake.php queue worker --verbose
-    volumes:
-      - .:/var/www/html
-      - ./docker/php.ini:/usr/local/etc/php/conf.d/app.ini
-    environment:
-      - APP_ENV=development
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_NAME=ai_agents
-      - DB_USERNAME=ai_agents
-      - DB_PASSWORD=secret
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - QUEUE_DSN=redis://redis:6379
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - ai_agents_network
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 volumes:
   db_data:
   redis_data:
-
-networks:
-  ai_agents_network:
-    driver: bridge

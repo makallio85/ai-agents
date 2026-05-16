@@ -1,10 +1,13 @@
 /**
- * Messaging Guests admin page.
+ * Messaging Requests admin page.
  *
  * Lists users with approval-state and channel filters. The channel filter
  * joins through user_channel_identities server-side, so a user with both
  * a WhatsApp and a Slack identity surfaces under either filter. Channel
  * chips on each row reflect every identity the user has registered.
+ *
+ * Renamed from "Messaging Guests" in issue #14 (grouped under User
+ * Management in the navigation restructure).
  */
 (function () {
     'use strict';
@@ -180,5 +183,5 @@
                 formatDate: formatDate,
             };
         },
-    }).mount('#messaging-guests-app');
+    }).mount('#messaging-requests-app');
 })();

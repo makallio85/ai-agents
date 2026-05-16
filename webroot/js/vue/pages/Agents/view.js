@@ -5,12 +5,19 @@
  * An inline edit form lets administrators update name, description,
  * LLM provider/model, system instructions, and config overrides
  * without leaving the page.
+ *
+ * Per-agent message channels (Slack, WhatsApp, ...) are loaded from the
+ * unified /api/v1/message-channels endpoint and rendered uniformly under
+ * the "Message channels" card. Per-channel forms are kept in `forms.<key>`
+ * and edit/save state in `editing[key]`, `saving[key]`, `errors[key]` so a
+ * new channel type only needs an HTML sub-panel + a default form entry.
  */
 (function () {
     'use strict';
 
     var createApp = Vue.createApp;
     var ref = Vue.ref;
+    var reactive = Vue.reactive;
     var computed = Vue.computed;
     var onMounted = Vue.onMounted;
 
@@ -22,6 +29,57 @@
         anthropic: { placeholder: 'claude-sonnet-4-6', hint: 'e.g. claude-opus-4-6, claude-sonnet-4-6, claude-haiku-4-5-20251001' },
         ollama:    { placeholder: 'llama3', hint: 'Any model pulled locally, e.g. llama3, mistral, phi3' },
     };
+
+    /**
+     * Default form values per channel type. Used both for the initial
+     * reactive `forms` object and when the user clicks Cancel.
+     */
+    var DEFAULT_FORMS = {
+        whatsapp: {
+            phone_number_id:       '',
+            display_number:        '',
+            access_token:          '',
+            welcome_template_name: '',
+            enabled:               false,
+        },
+        slack: {
+            app_id:         '',
+            bot_user_id:    '',
+            bot_token:      '',
+            signing_secret: '',
+            team_id:        '',
+            enabled:        false,
+        },
+    };
+
+    /**
+     * Build a fresh form payload from the channel's current config when the
+     * user opens the edit panel. Secret fields always start blank so the
+     * existing encrypted value is kept unless the admin types a new one.
+     */
+    function buildEditForm(channel) {
+        var cfg = channel.config || {};
+        if (channel.key === 'whatsapp') {
+            return {
+                phone_number_id:       cfg.phone_number_id || '',
+                display_number:        cfg.display_number || '',
+                access_token:          '',
+                welcome_template_name: cfg.welcome_template_name || '',
+                enabled:               !!cfg.enabled,
+            };
+        }
+        if (channel.key === 'slack') {
+            return {
+                app_id:         cfg.app_id || '',
+                bot_user_id:    cfg.bot_user_id || '',
+                bot_token:      '',
+                signing_secret: '',
+                team_id:        cfg.team_id || '',
+                enabled:        !!cfg.enabled,
+            };
+        }
+        return {};
+    }
 
     createApp({
         setup: function () {
@@ -44,47 +102,16 @@
                 is_enabled: true,
             });
 
-            // WhatsApp config state
-            var whatsapp = ref({
-                phone_number_id: null,
-                display_number: null,
-                access_token_set: false,
-                welcome_template_name: null,
-                enabled: false,
-                has_global_app_secret: false,
-            });
-            var whatsappEditing = ref(false);
-            var loadingWhatsapp = ref(true);
-            var savingWhatsapp = ref(false);
-            var whatsappError = ref('');
-            var whatsappForm = ref({
-                phone_number_id: '',
-                display_number: '',
-                access_token: '',
-                welcome_template_name: '',
-                enabled: false,
-            });
-
-            // Slack config state
-            var slack = ref({
-                app_id: null,
-                bot_user_id: null,
-                bot_token_set: false,
-                signing_secret_set: false,
-                team_id: null,
-                enabled: false,
-            });
-            var slackEditing = ref(false);
-            var loadingSlack = ref(true);
-            var savingSlack = ref(false);
-            var slackError = ref('');
-            var slackForm = ref({
-                app_id: '',
-                bot_user_id: '',
-                bot_token: '',
-                signing_secret: '',
-                team_id: '',
-                enabled: false,
+            // Message channels — single source of truth, keyed by channel key
+            var channels = ref([]);
+            var loadingChannels = ref(true);
+            var channelsError = ref('');
+            var channelEditing = reactive({});
+            var channelSaving = reactive({});
+            var channelErrors = reactive({});
+            var channelForms = reactive({
+                whatsapp: Object.assign({}, DEFAULT_FORMS.whatsapp),
+                slack:    Object.assign({}, DEFAULT_FORMS.slack),
             });
 
             // ── Computed ──────────────────────────────────────────────
@@ -129,106 +156,58 @@
                 }
             }
 
-            async function loadWhatsapp() {
-                loadingWhatsapp.value = true;
+            /**
+             * Pulls every registered channel + its admin payload in one round-trip.
+             * Permission errors (chat:configure missing) leave the section empty
+             * rather than surfacing a noisy alert.
+             */
+            async function loadChannels() {
+                loadingChannels.value = true;
+                channelsError.value = '';
                 try {
-                    var data = await Api.agents.whatsappConfig(agentId);
-                    whatsapp.value = data.data || whatsapp.value;
+                    var data = await Api.messageChannels.list(agentId);
+                    channels.value = data.data || [];
                 } catch (e) {
-                    // Permission denied (chat:configure missing) leaves the
-                    // section in its default state; no need to surface an error.
+                    if (e.status === 403) {
+                        channels.value = [];
+                    } else {
+                        channelsError.value = e.message || 'Failed to load channels';
+                    }
                 } finally {
-                    loadingWhatsapp.value = false;
+                    loadingChannels.value = false;
                 }
             }
 
-            function openWhatsappEdit() {
-                whatsappForm.value = {
-                    phone_number_id: whatsapp.value.phone_number_id || '',
-                    display_number: whatsapp.value.display_number || '',
-                    access_token: '',
-                    welcome_template_name: whatsapp.value.welcome_template_name || '',
-                    enabled: !!whatsapp.value.enabled,
-                };
-                whatsappError.value = '';
-                whatsappEditing.value = true;
+            function openEdit(channel) {
+                channelForms[channel.key] = buildEditForm(channel);
+                channelErrors[channel.key] = '';
+                channelEditing[channel.key] = true;
             }
 
-            function cancelWhatsapp() {
-                whatsappEditing.value = false;
-                whatsappError.value = '';
+            function cancelEdit(channel) {
+                channelEditing[channel.key] = false;
+                channelErrors[channel.key] = '';
+                channelForms[channel.key] = Object.assign({}, DEFAULT_FORMS[channel.key] || {});
             }
 
-            async function saveWhatsapp() {
-                if (savingWhatsapp.value) { return; }
-                savingWhatsapp.value = true;
-                whatsappError.value = '';
+            async function saveChannel(channel) {
+                if (channelSaving[channel.key]) { return; }
+                channelSaving[channel.key] = true;
+                channelErrors[channel.key] = '';
                 try {
-                    var result = await Api.agents.updateWhatsappConfig(agentId, {
-                        phone_number_id: whatsappForm.value.phone_number_id,
-                        display_number: whatsappForm.value.display_number,
-                        access_token: whatsappForm.value.access_token || '',
-                        welcome_template_name: whatsappForm.value.welcome_template_name,
-                        enabled: !!whatsappForm.value.enabled,
-                    });
-                    if (result.data) { whatsapp.value = result.data; }
-                    whatsappEditing.value = false;
+                    var result = await Api.messageChannels.update(agentId, channel.key, channelForms[channel.key]);
+                    if (result.data) {
+                        // Replace the channel entry in-place so reactivity fires.
+                        var idx = channels.value.findIndex(function (c) { return c.key === channel.key; });
+                        if (idx >= 0) {
+                            channels.value.splice(idx, 1, result.data);
+                        }
+                    }
+                    channelEditing[channel.key] = false;
                 } catch (err) {
-                    whatsappError.value = err.message || 'Failed to save WhatsApp configuration';
+                    channelErrors[channel.key] = err.message || ('Failed to save ' + (channel.label || channel.key));
                 } finally {
-                    savingWhatsapp.value = false;
-                }
-            }
-
-            async function loadSlack() {
-                loadingSlack.value = true;
-                try {
-                    var data = await Api.agents.slackConfig(agentId);
-                    slack.value = data.data || slack.value;
-                } catch (e) {
-                    // Permission denied is silent — UI stays in default state.
-                } finally {
-                    loadingSlack.value = false;
-                }
-            }
-
-            function openSlackEdit() {
-                slackForm.value = {
-                    app_id: slack.value.app_id || '',
-                    bot_user_id: slack.value.bot_user_id || '',
-                    bot_token: '',
-                    signing_secret: '',
-                    team_id: slack.value.team_id || '',
-                    enabled: !!slack.value.enabled,
-                };
-                slackError.value = '';
-                slackEditing.value = true;
-            }
-
-            function cancelSlack() {
-                slackEditing.value = false;
-                slackError.value = '';
-            }
-
-            async function saveSlack() {
-                if (savingSlack.value) { return; }
-                savingSlack.value = true;
-                slackError.value = '';
-                try {
-                    var result = await Api.agents.updateSlackConfig(agentId, {
-                        app_id: slackForm.value.app_id,
-                        bot_user_id: slackForm.value.bot_user_id,
-                        bot_token: slackForm.value.bot_token || '',
-                        signing_secret: slackForm.value.signing_secret || '',
-                        team_id: slackForm.value.team_id || '',
-                        enabled: !!slackForm.value.enabled,
-                    });
-                    if (result.data) { slack.value = result.data; }
-                    slackEditing.value = false;
-                } catch (err) {
-                    slackError.value = err.message || 'Failed to save Slack configuration';
-                } finally {
-                    savingSlack.value = false;
+                    channelSaving[channel.key] = false;
                 }
             }
 
@@ -310,16 +289,8 @@
             onMounted(function () {
                 load();
                 loadLogs();
-                loadWhatsapp();
-                loadSlack();
+                loadChannels();
             });
-
-            // Open the WhatsApp form when the user clicks Edit; a watch on the
-            // ref isn't necessary because the template wires the click handler
-            // directly to whatsappEditing.value = true. We override that with a
-            // small wrapper so the form gets pre-populated from whatsapp.value.
-            // (The template uses @click="whatsappEditing = true" — but the
-            // wrapper version below is exposed so future edits can call it.)
 
             return {
                 agent: agent,
@@ -338,24 +309,18 @@
                 formatDate: formatDate,
                 formatJson: formatJson,
                 levelBadgeClass: levelBadgeClass,
-                whatsapp: whatsapp,
-                whatsappEditing: whatsappEditing,
-                loadingWhatsapp: loadingWhatsapp,
-                savingWhatsapp: savingWhatsapp,
-                whatsappError: whatsappError,
-                whatsappForm: whatsappForm,
-                openWhatsappEdit: openWhatsappEdit,
-                cancelWhatsapp: cancelWhatsapp,
-                saveWhatsapp: saveWhatsapp,
-                slack: slack,
-                slackEditing: slackEditing,
-                loadingSlack: loadingSlack,
-                savingSlack: savingSlack,
-                slackError: slackError,
-                slackForm: slackForm,
-                openSlackEdit: openSlackEdit,
-                cancelSlack: cancelSlack,
-                saveSlack: saveSlack,
+
+                // Channels (see Message channels card in the template)
+                channels: channels,
+                loadingChannels: loadingChannels,
+                channelsError: channelsError,
+                channelEditing: channelEditing,
+                channelSaving: channelSaving,
+                channelErrors: channelErrors,
+                channelForms: channelForms,
+                openEdit: openEdit,
+                cancelEdit: cancelEdit,
+                saveChannel: saveChannel,
             };
         },
     }).mount('#agent-view-app');

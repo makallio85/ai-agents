@@ -1,6 +1,6 @@
 # CakePHP specific files #
 ##########################
-/config/app_local.php
+# /config/app_local.php is env-driven and committed
 /config/.env
 /logs/*
 /tmp/*
@@ -52,11 +52,8 @@ yarn-debug.log
 yarn-error.log
 # npm
 npm-debug.log
-package-lock.json
 # Vite build output
 /webroot/build/*
-# Docker env overrides
-docker-compose.override.yml
 # PHPStan cache
 .phpstan.cache/
 # Environment files
