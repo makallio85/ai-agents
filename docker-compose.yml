@@ -48,10 +48,11 @@ services:
     volumes:
       # Host-mounted agent auth + session memory. Files are owned by host uid
       # 1000; image re-UIDs www-data to 1000 so they're readable inside.
+      # Coolify's `is_raw_compose_deployment_enabled` is set on this app so
+      # these bind sources are NOT suffixed with `-pr-<N>` on PR previews.
       - /home/makallio85/.claude:/home/www-data/.claude
       - /home/makallio85/.claude.json:/home/www-data/.claude.json
       - /home/makallio85/.config/gh:/home/www-data/.config/gh
-      # Agent conventions + workflow rules. Read-only.
       - /srv/documentation:/srv/documentation:ro
     depends_on:
       db:

@@ -39,7 +39,7 @@ RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
 # inside the live preview container; gh authenticates via the operator's
 # host-mounted ~/.config/gh. Bash so `docker exec -u www-data` lands in a
 # usable shell.
-RUN apk add --no-cache bash nodejs npm github-cli ripgrep \
+RUN apk add --no-cache bash nodejs npm github-cli ripgrep jq \
     && npm install -g @anthropic-ai/claude-code \
     && npm cache clean --force
 
