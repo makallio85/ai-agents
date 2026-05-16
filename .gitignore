@@ -55,8 +55,6 @@ npm-debug.log
 package-lock.json
 # Vite build output
 /webroot/build/*
-# Docker env overrides
-docker-compose.override.yml
 # PHPStan cache
 .phpstan.cache/
 # Environment files

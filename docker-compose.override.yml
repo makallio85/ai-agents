@@ -1,0 +1,55 @@
+# Local-dev override. Loaded automatically by `docker compose up` (not
+# referenced by Coolify, which runs `-f docker-compose.yml` only).
+#
+# Effects:
+#   - Builds the `dev` Dockerfile stage (xdebug + dev composer deps)
+#   - Bind-mounts the repo into containers for hot reload
+#   - Exposes nginx, db, redis on host ports
+#   - Uses fixed local secrets so you don't need a .env
+
+services:
+  app:
+    build:
+      target: dev
+    image: ai-agents-app:dev
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+      - SECURITY_SALT=local-dev-salt
+      - DB_PASSWORD=secret
+      - REDIS_PASSWORD=secret
+    volumes:
+      - .:/var/www/html
+      - ./docker/php.ini:/usr/local/etc/php/conf.d/app.ini
+
+  nginx:
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+
+  queue-worker:
+    build:
+      target: dev
+    image: ai-agents-app:dev
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+      - SECURITY_SALT=local-dev-salt
+      - DB_PASSWORD=secret
+      - REDIS_PASSWORD=secret
+    volumes:
+      - .:/var/www/html
+      - ./docker/php.ini:/usr/local/etc/php/conf.d/app.ini
+
+  db:
+    environment:
+      - MARIADB_PASSWORD=secret
+      - MARIADB_ROOT_PASSWORD=secret
+    ports:
+      - "3307:3306"
+
+  redis:
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "secret"]
+    ports:
+      - "6380:6379"
