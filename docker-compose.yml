@@ -45,14 +45,11 @@ services:
     expose:
       - "80"
     mem_limit: 1500m
-    volumes:
-      # Host-mounted agent auth + session memory. Files are owned by host uid
-      # 1000; image re-UIDs www-data to 1000 so they're readable inside.
-      - /home/makallio85/.claude:/home/www-data/.claude
-      - /home/makallio85/.claude.json:/home/www-data/.claude.json
-      - /home/makallio85/.config/gh:/home/www-data/.config/gh
-      # Agent conventions + workflow rules. Read-only.
-      - /srv/documentation:/srv/documentation:ro
+    # Agent bind mounts (~/.claude, ~/.claude.json, ~/.config/gh, /srv/documentation)
+    # are declared as Coolify "file storages" in the DB (local_file_volumes
+    # rows) with is_preview_suffix_enabled=false. Not in this compose because
+    # Coolify's parseDockerComposeFile unconditionally appends `-pr-<N>` to
+    # bind-mount sources for PR previews regardless of the flag.
     depends_on:
       db:
         condition: service_healthy
@@ -84,11 +81,6 @@ services:
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - RUN_MIGRATIONS=false
     mem_limit: 1500m
-    volumes:
-      - /home/makallio85/.claude:/home/www-data/.claude
-      - /home/makallio85/.claude.json:/home/www-data/.claude.json
-      - /home/makallio85/.config/gh:/home/www-data/.config/gh
-      - /srv/documentation:/srv/documentation:ro
     depends_on:
       db:
         condition: service_healthy
