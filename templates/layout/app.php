@@ -62,6 +62,10 @@
             padding-left: 4.25rem;
             font-size: .8rem;
         }
+        .sidebar .nav-link.sub-3 {
+            padding-left: 5.5rem;
+            font-size: .78rem;
+        }
 
         .main-content {
             margin-left: 240px;
@@ -128,11 +132,11 @@
             <i class="bi bi-grid-3x3-gap"></i> All integrations
         </a>
         <a href="<?= $this->Url->build('/github-integrations') ?>"
-           class="nav-link sub <?= $controller === 'GithubIntegrations' ? 'active' : '' ?>">
+           class="nav-link sub-2 <?= $controller === 'GithubIntegrations' ? 'active' : '' ?>">
             <i class="bi bi-github"></i> GitHub
         </a>
         <a href="<?= $this->Url->build('/labels') ?>"
-           class="nav-link sub-2 <?= $controller === 'Labels' ? 'active' : '' ?>">
+           class="nav-link sub-3 <?= $controller === 'Labels' ? 'active' : '' ?>">
             <i class="bi bi-tags"></i> Labels
         </a>
 
