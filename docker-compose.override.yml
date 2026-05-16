@@ -1,0 +1,47 @@
+# Local-dev override. Auto-loaded by `docker compose up` (Coolify runs
+# `-f docker-compose.yml` only, so this file is ignored on the server).
+#
+# Effects:
+#   - Builds the `dev` Dockerfile stage (xdebug + dev composer deps)
+#   - Bind-mounts the repo into the app + worker containers for hot reload
+#   - Exposes app on host port 8080, db on 3307, redis on 6380
+#   - Hardcodes local-dev secrets so you don't need a .env
+
+services:
+  app:
+    build:
+      target: dev
+    image: local-app:dev
+    environment:
+      - CAKE_ENV=development
+      - DEBUG=true
+      - SECURITY_SALT=local-dev-salt
+      - DB_PASSWORD=secret
+      - REDIS_PASSWORD=secret
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+
+  worker:
+    image: local-app:dev
+    environment:
+      - CAKE_ENV=development
+      - DEBUG=true
+      - SECURITY_SALT=local-dev-salt
+      - DB_PASSWORD=secret
+      - REDIS_PASSWORD=secret
+    volumes:
+      - .:/var/www/html
+
+  db:
+    environment:
+      MARIADB_PASSWORD: secret
+      MARIADB_ROOT_PASSWORD: secret
+    ports:
+      - "3307:3306"
+
+  redis:
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "secret"]
+    ports:
+      - "6380:6379"

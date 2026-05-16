@@ -3,6 +3,11 @@
 # Each Coolify deployment (main dev branch + per-PR preview) gets its own
 # complete, isolated stack. Branches cannot corrupt each other's data.
 #
+# BUILD_TARGET picks the Dockerfile stage:
+#   BUILD_TARGET=dev   → xdebug + dev composer deps (Coolify dev app)
+#   BUILD_TARGET=prod  → no xdebug, --no-dev (Coolify prod app; default)
+# new-coolify-app.sh sets BUILD_TARGET per environment automatically.
+#
 # Coolify auto-injects:
 #   SERVICE_FQDN_APP     — public URL of this deployment
 #   SERVICE_NAME_<NAME>  — suffixed service names so previews talk to siblings
@@ -12,13 +17,17 @@
 #   DB_PASSWORD, REDIS_PASSWORD, SECURITY_SALT
 # Optional with sensible defaults:
 #   DB_NAME, DB_USER, CAKE_ENV, DEBUG
+#
+# Local dev uses docker-compose.override.yml (auto-loaded by `docker compose
+# up`, ignored by Coolify which runs `-f docker-compose.yml` only).
 
 services:
   app:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    image: ${COOLIFY_RESOURCE_UUID:-local}-app:latest
+      target: ${BUILD_TARGET:-prod}
+    image: ${COOLIFY_RESOURCE_UUID:-local}-app:${BUILD_TARGET:-prod}
     environment:
       - SERVICE_FQDN_APP=/
       - CAKE_ENV=${CAKE_ENV:-development}
@@ -51,7 +60,7 @@ services:
 
   worker:
     # Reuses the app image so we only build once.
-    image: ${COOLIFY_RESOURCE_UUID:-local}-app:latest
+    image: ${COOLIFY_RESOURCE_UUID:-local}-app:${BUILD_TARGET:-prod}
     command: ["sh", "-c", "while true; do php bin/cake queue worker --quiet --verbose || sleep 10; done"]
     environment:
       - CAKE_ENV=${CAKE_ENV:-development}

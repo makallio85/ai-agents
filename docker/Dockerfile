@@ -1,10 +1,14 @@
 # Multi-stage build:
-#   1. node    — compile Vue + SCSS via Vite (outputs /webroot/build)
-#   2. runtime — php-fpm + nginx + supervisord with composer install run AFTER
-#                PHP extensions are in place (so composer can verify the
-#                lock file against actually-available extensions like intl).
+#   1. frontend — compile Vue + SCSS via Vite (outputs /webroot/build)
+#   2. base     — php-fpm + nginx + supervisord with PHP extensions + composer
+#   3. prod     — composer --no-dev, optimized autoloader (Coolify prod app)
+#   4. dev      — xdebug + dev composer deps (Coolify dev app + local dev)
 #
-# Used by both `app` (with supervisord) and `worker` (CMD override) services.
+# BUILD_TARGET (set via compose `target:`) picks `prod` or `dev`. Both ship
+# nginx + php-fpm in a single container, behind Coolify's Traefik.
+#
+# linux-headers in base so pecl compiles needing <linux/rtnetlink.h>
+# (xdebug 3.4+, etc.) work in any downstream stage.
 
 # ───────────────────────── 1. Build frontend assets ─────────────────────────
 FROM node:20-alpine AS frontend
@@ -16,11 +20,9 @@ COPY vite.config.js ./
 COPY resources/ resources/
 RUN npm run build
 
-# ───────────────────────── 2. Runtime image ─────────────────────────
-FROM php:8.3-fpm-alpine
+# ───────────────────────── 2. Base runtime ─────────────────────────
+FROM php:8.3-fpm-alpine AS base
 
-# System deps + PHP extensions. linux-headers needed for any future pecl compile
-# (xdebug, etc) that pulls in <linux/rtnetlink.h>.
 RUN apk add --no-cache \
         nginx supervisor curl \
         git libzip-dev icu-dev oniguruma-dev mariadb-dev \
@@ -28,48 +30,19 @@ RUN apk add --no-cache \
     && docker-php-ext-install \
         pdo_mysql mbstring zip intl opcache pcntl bcmath
 
-# Redis extension via pecl (compiled, not stock)
 RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del .build-deps
 
-# Composer binary from the official image
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
-# Configs (early layer for cache friendliness)
-COPY docker/nginx.conf      /etc/nginx/http.d/default.conf
+COPY docker/nginx.conf       /etc/nginx/http.d/default.conf
 COPY docker/supervisord.conf /etc/supervisord.conf
 COPY docker/php.ini          /usr/local/etc/php/conf.d/app.ini
 
 WORKDIR /var/www/html
 
-# Composer install — separate layer cached when composer.lock unchanged.
-#
-# INSTALL_DEV controls whether require-dev packages (DebugKit, phpunit, phpstan,
-# bake) ship with the image. Default = true (install everything), suitable for
-# dev/preview deployments. Prod tier should set --build-arg INSTALL_DEV=false
-# to slim the image and avoid shipping debug tooling to customer traffic.
-ARG INSTALL_DEV=true
-COPY composer.json composer.lock ./
-RUN if [ "$INSTALL_DEV" = "true" ]; then \
-        composer install --no-interaction --no-scripts --optimize-autoloader; \
-    else \
-        composer install --no-dev --no-interaction --no-scripts --optimize-autoloader; \
-    fi
-
-# App code + built frontend assets
-COPY . .
-COPY --from=frontend /build/webroot/build /var/www/html/webroot/build
-
-# Run post-install scripts now that the full app is in place
-RUN composer run-script post-install-cmd --no-interaction || true
-
-RUN mkdir -p tmp logs \
-    && chown -R www-data:www-data tmp logs \
-    && chmod -R 775 tmp logs
-
-# Entrypoint waits for DB, runs migrations if RUN_MIGRATIONS=true, then exec's CMD.
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
@@ -77,3 +50,36 @@ EXPOSE 80
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["supervisord", "-c", "/etc/supervisord.conf", "-n"]
+
+# ───────────────────────── 3. Production image ─────────────────────────
+FROM base AS prod
+
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-scripts --optimize-autoloader
+
+COPY . .
+COPY --from=frontend /build/webroot/build /var/www/html/webroot/build
+
+RUN composer run-script post-install-cmd --no-interaction || true \
+    && mkdir -p tmp logs \
+    && chown -R www-data:www-data tmp logs \
+    && chmod -R 775 tmp logs
+
+# ───────────────────────── 4. Development image ─────────────────────────
+FROM base AS dev
+
+RUN apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug \
+    && apk del .build-deps
+
+COPY composer.json composer.lock ./
+RUN composer install --no-interaction --no-scripts --optimize-autoloader
+
+COPY . .
+COPY --from=frontend /build/webroot/build /var/www/html/webroot/build
+
+RUN composer run-script post-install-cmd --no-interaction || true \
+    && mkdir -p tmp logs \
+    && chown -R www-data:www-data tmp logs \
+    && chmod -R 775 tmp logs
