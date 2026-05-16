@@ -51,6 +51,8 @@ services:
       - /home/makallio85/.claude:/home/www-data/.claude
       - /home/makallio85/.claude.json:/home/www-data/.claude.json
       - /home/makallio85/.config/gh:/home/www-data/.config/gh
+      # Agent conventions + workflow rules. Read-only.
+      - /srv/documentation:/srv/documentation:ro
     depends_on:
       db:
         condition: service_healthy
@@ -86,6 +88,7 @@ services:
       - /home/makallio85/.claude:/home/www-data/.claude
       - /home/makallio85/.claude.json:/home/www-data/.claude.json
       - /home/makallio85/.config/gh:/home/www-data/.config/gh
+      - /srv/documentation:/srv/documentation:ro
     depends_on:
       db:
         condition: service_healthy
