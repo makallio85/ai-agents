@@ -105,6 +105,10 @@ services:
       MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db_data:/var/lib/mysql
+      # First-boot init: creates <DB>_test + grants the app user on it so
+      # PHPUnit can run inside Coolify previews. Only runs when the data
+      # volume is empty — rebuild the preview if its DB volume already exists.
+      - ./docker/db:/docker-entrypoint-initdb.d:ro
     mem_limit: 512m
     healthcheck:
       test: ["CMD-SHELL", "mariadb-admin ping -h localhost -p${DB_PASSWORD} || exit 1"]
