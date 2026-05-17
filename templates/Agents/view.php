@@ -5,31 +5,33 @@
  */
 $this->assign('title', 'Agent details');
 ?>
-<div id="agent-view-app">
+<div id="agent-view-app" v-cloak>
     <div v-if="loading" class="text-center py-5 text-muted">
         <div class="spinner-border"></div>
     </div>
 
     <template v-else-if="agent">
-        <div class="d-flex align-items-center gap-3 mb-4">
-            <a href="<?= $this->Url->build('/agents') ?>" class="btn btn-sm btn-outline-secondary">
+        <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3 mb-4">
+            <a href="<?= $this->Url->build('/agents') ?>" class="btn btn-sm btn-outline-secondary flex-shrink-0">
                 <i class="bi bi-arrow-left"></i>
             </a>
-            <div>
-                <h5 class="mb-0">{{ agent.name }}</h5>
+            <div class="min-w-0">
+                <h5 class="mb-0 text-truncate">{{ agent.name }}</h5>
                 <code class="text-muted small">{{ agent.plugin }}</code>
             </div>
-            <span class="badge ms-2" :class="agent.is_enabled ? 'bg-success' : 'bg-secondary'">
+            <span class="badge flex-shrink-0" :class="agent.is_enabled ? 'bg-success' : 'bg-secondary'">
                 {{ agent.is_enabled ? 'Active' : 'Inactive' }}
             </span>
-            <a :href="'<?= $this->Url->build('/chat') ?>?agent_id=' + agent.id"
-               class="btn btn-sm btn-primary ms-auto">
-                <i class="bi bi-chat-dots me-1"></i> Start chat
-            </a>
-            <button class="btn btn-sm btn-outline-primary ms-2" @click="toggleEdit">
-                <i class="bi" :class="editing ? 'bi-x-lg' : 'bi-pencil'"></i>
-                {{ editing ? 'Cancel' : 'Edit' }}
-            </button>
+            <div class="d-flex flex-wrap gap-2 ms-md-auto">
+                <a :href="'<?= $this->Url->build('/chat') ?>?agent_id=' + agent.id"
+                   class="btn btn-sm btn-primary">
+                    <i class="bi bi-chat-dots me-1"></i> Start chat
+                </a>
+                <button class="btn btn-sm btn-outline-primary" @click="toggleEdit">
+                    <i class="bi" :class="editing ? 'bi-x-lg' : 'bi-pencil'"></i>
+                    {{ editing ? 'Cancel' : 'Edit' }}
+                </button>
+            </div>
         </div>
 
         <!-- Edit form -->

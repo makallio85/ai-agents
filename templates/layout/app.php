@@ -10,16 +10,24 @@
     <style>
         body { background: #f8f9fa; }
 
+        /* Vue mounts asynchronously — hide unrendered roots so users don't
+           see `{{ moustache }}` placeholders or `v-*` markup before mount. */
+        [v-cloak] { display: none !important; }
+
         .sidebar {
             width: 240px;
-            min-height: 100vh;
+            height: 100vh;
+            height: 100dvh;
             background: #1a1d23;
             color: #adb5bd;
             position: fixed;
             top: 0;
             left: 0;
-            z-index: 100;
+            z-index: 1040;
             padding: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            transition: transform .2s ease;
         }
         .sidebar .brand {
             padding: 1.25rem 1.5rem;
@@ -70,6 +78,7 @@
         .main-content {
             margin-left: 240px;
             min-height: 100vh;
+            min-height: 100dvh;
         }
         .topbar {
             background: #fff;
@@ -83,12 +92,52 @@
         .page-content {
             padding: 1.5rem;
         }
+
+        /* Sidebar toggle button — only shown on mobile via d-lg-none */
+        .sidebar-toggle {
+            background: transparent;
+            border: 0;
+            padding: .25rem .5rem;
+            font-size: 1.25rem;
+            line-height: 1;
+            color: #495057;
+        }
+        .sidebar-toggle:hover { color: #1a1d23; }
+
+        /* Backdrop shown behind the slide-in sidebar on mobile */
+        .sidebar-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .5);
+            z-index: 1030;
+            display: none;
+        }
+        .sidebar-backdrop.show { display: block; }
+
+        /* Mobile breakpoint: sidebar slides in over the page */
+        @media (max-width: 991.98px) {
+            .sidebar {
+                transform: translateX(-100%);
+                box-shadow: 0 0 20px rgba(0, 0, 0, .3);
+            }
+            .sidebar.show { transform: translateX(0); }
+
+            .main-content { margin-left: 0; }
+            .page-content { padding: 1rem; }
+            .topbar { padding: .625rem 1rem; }
+        }
+
+        /* Very narrow screens: hide the email on the topbar to leave room
+           for the page title; sidebar profile entry already shows it. */
+        @media (max-width: 480px) {
+            .topbar .topbar-email { display: none; }
+        }
     </style>
     <?= $this->fetch('css') ?>
 </head>
 <body>
 
-<nav class="sidebar d-flex flex-column">
+<nav class="sidebar d-flex flex-column" id="appSidebar">
     <a href="<?= $this->Url->build('/dashboard') ?>" class="brand">
         🤖 AI Agents
     </a>
@@ -165,11 +214,27 @@
     </div>
 </nav>
 
+<!-- Backdrop sits between the sidebar and the page on mobile; tapping it
+     closes the sidebar. Hidden by default; .show is toggled by sidebar.js. -->
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
 <div class="main-content">
-    <div class="topbar d-flex align-items-center justify-content-between">
-        <h6 class="mb-0 fw-semibold"><?= $this->fetch('title') ?></h6>
+    <div class="topbar d-flex align-items-center justify-content-between gap-2">
+        <div class="d-flex align-items-center gap-2 min-w-0">
+            <button
+                type="button"
+                class="sidebar-toggle d-lg-none"
+                id="sidebarToggle"
+                aria-label="Toggle navigation"
+                aria-controls="appSidebar"
+                aria-expanded="false"
+            >
+                <i class="bi bi-list"></i>
+            </button>
+            <h6 class="mb-0 fw-semibold text-truncate"><?= $this->fetch('title') ?></h6>
+        </div>
         <div class="d-flex align-items-center gap-2">
-            <a href="<?= $this->Url->build('/profile') ?>" class="text-muted small text-decoration-none">
+            <a href="<?= $this->Url->build('/profile') ?>" class="text-muted small text-decoration-none topbar-email">
                 <i class="bi bi-person-circle me-1"></i>
                 <?= h($this->Identity->get('email') ?? '') ?>
             </a>
@@ -185,6 +250,50 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script>var webroot = "<?= $this->Url->build('/') ?>";</script>
+<script>
+    // Mobile sidebar toggle. Bootstrap's offcanvas would also work, but we
+    // already render the sidebar as a permanent <nav> on desktop, so a
+    // lightweight CSS-class toggle keeps both modes driven by the same
+    // markup. The toggle button and backdrop are hidden on >=lg via CSS.
+    (function () {
+        var toggle = document.getElementById('sidebarToggle');
+        var sidebar = document.getElementById('appSidebar');
+        var backdrop = document.getElementById('sidebarBackdrop');
+        if (!toggle || !sidebar || !backdrop) return;
+
+        function open() {
+            sidebar.classList.add('show');
+            backdrop.classList.add('show');
+            toggle.setAttribute('aria-expanded', 'true');
+        }
+        function close() {
+            sidebar.classList.remove('show');
+            backdrop.classList.remove('show');
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+
+        toggle.addEventListener('click', function () {
+            sidebar.classList.contains('show') ? close() : open();
+        });
+        backdrop.addEventListener('click', close);
+
+        // Tapping a nav link on mobile should dismiss the sidebar so the
+        // page underneath is visible after navigation.
+        sidebar.querySelectorAll('a.nav-link, a.brand').forEach(function (el) {
+            el.addEventListener('click', function () {
+                if (window.innerWidth < 992) close();
+            });
+        });
+
+        // If the viewport grows past the breakpoint while the sidebar is
+        // open, drop the .show classes so desktop styles take over cleanly.
+        window.addEventListener('resize', function () {
+            if (window.innerWidth >= 992 && sidebar.classList.contains('show')) {
+                close();
+            }
+        });
+    })();
+</script>
 <?= $this->Html->script('vue/api') ?>
 <?= $this->fetch('script') ?>
 </body>

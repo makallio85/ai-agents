@@ -4,7 +4,7 @@
  */
 $this->assign('title', 'Dashboard');
 ?>
-<div id="dashboard-app">
+<div id="dashboard-app" v-cloak>
     <div class="row g-4 mb-4">
         <div class="col-sm-6 col-xl-4">
             <div class="card border-0 shadow-sm">

@@ -4,7 +4,7 @@
  */
 $this->assign('title', 'Labels');
 ?>
-<div id="labels-app">
+<div id="labels-app" v-cloak>
     <div class="d-flex align-items-center justify-content-between mb-4">
         <p class="text-muted mb-0 small">Labels are used to automatically categorise GitHub issues parsed by agents.</p>
         <button class="btn btn-primary btn-sm" @click="showCreateModal = true">

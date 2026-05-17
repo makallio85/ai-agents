@@ -4,7 +4,7 @@
  */
 $this->assign('title', 'GitHub Integrations');
 ?>
-<div id="github-app">
+<div id="github-app" v-cloak>
     <div class="d-flex align-items-center justify-content-between mb-4">
         <p class="text-muted mb-0 small">Connect your GitHub repositories so agents can create issues automatically.</p>
         <button class="btn btn-primary btn-sm" @click="showCreateModal = true">
