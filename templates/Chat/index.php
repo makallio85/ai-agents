@@ -29,6 +29,55 @@ $this->assign('title', 'Chat');
         flex-direction: column;
         overflow: hidden;
     }
+
+    /* Toggle button shown on mobile only; hidden on >=md via Bootstrap. */
+    .chat-sessions-toggle {
+        background: transparent;
+        border: 0;
+        padding: .25rem .5rem;
+        font-size: 1.15rem;
+        line-height: 1;
+        color: #495057;
+    }
+    .chat-sessions-toggle:hover { color: #1a1d23; }
+
+    .chat-sessions-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, .4);
+        z-index: 10;
+        display: none;
+    }
+    .chat-sessions-backdrop.show { display: block; }
+
+    /* Mobile: collapse the sessions sidebar into a slide-in panel so the
+       message thread can use the full viewport width. */
+    @media (max-width: 767.98px) {
+        .chat-wrap { position: relative; }
+
+        .chat-sessions {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            z-index: 20;
+            width: 80vw;
+            min-width: 0;
+            max-width: 280px;
+            transform: translateX(-100%);
+            transition: transform .2s ease;
+            box-shadow: 0 0 20px rgba(0, 0, 0, .25);
+        }
+        .chat-sessions.show { transform: translateX(0); }
+
+        .chat-main { width: 100%; }
+
+        .chat-header { padding: .625rem .875rem; gap: .5rem; }
+        .chat-header select { max-width: none; flex: 1; min-width: 0; }
+        .chat-messages { padding: .875rem; }
+        .msg-bubble { max-width: 85%; }
+        .chat-input-area { padding: .75rem .875rem; }
+    }
     .chat-sessions-header {
         padding: .875rem 1rem;
         border-bottom: 1px solid #dee2e6;
@@ -265,11 +314,19 @@ $this->assign('title', 'Chat');
 <div id="chat-app" v-cloak>
     <div class="chat-wrap">
 
+        <!-- Backdrop shown on mobile when the slide-in session panel is
+             open; tapping it closes the panel. Hidden via CSS on >=md. -->
+        <div
+            class="chat-sessions-backdrop d-md-none"
+            :class="{ show: sidebarOpen }"
+            @click="closeSidebar"
+        ></div>
+
         <!-- Session history sidebar -->
-        <div class="chat-sessions">
+        <div class="chat-sessions" :class="{ show: sidebarOpen }">
             <div class="chat-sessions-header">
                 <span>History</span>
-                <button class="btn btn-sm btn-primary py-0 px-2" style="font-size:.78rem;" @click="newSession">
+                <button class="btn btn-sm btn-primary py-0 px-2" style="font-size:.78rem;" @click="newSession(); closeSidebar();">
                     + New
                 </button>
             </div>
@@ -281,7 +338,7 @@ $this->assign('title', 'Chat');
                     :key="s.id"
                     class="session-item"
                     :class="{ active: activeSession && activeSession.id === s.id }"
-                    @click="loadSession(s.id)"
+                    @click="loadSession(s.id); closeSidebar();"
                 >
                     <span class="session-del" @click.stop="deleteSession(s.id)" title="Delete">✕</span>
                     <div>
@@ -299,20 +356,28 @@ $this->assign('title', 'Chat');
         <div class="chat-main">
             <!-- Header: agent selector when no session, or session agent name -->
             <div class="chat-header">
+                <button
+                    type="button"
+                    class="chat-sessions-toggle d-md-none"
+                    aria-label="Toggle chat history"
+                    @click="toggleSidebar"
+                >
+                    <i class="bi bi-list"></i>
+                </button>
                 <template v-if="!activeSession">
-                    <i class="bi bi-robot text-muted"></i>
+                    <i class="bi bi-robot text-muted d-none d-md-inline"></i>
                     <select class="form-select form-select-sm" v-model="selectedAgentId">
                         <option value="">Select an agent…</option>
                         <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option>
                     </select>
-                    <button class="btn btn-sm btn-primary" @click="startSession" :disabled="!selectedAgentId">
+                    <button class="btn btn-sm btn-primary flex-shrink-0" @click="startSession" :disabled="!selectedAgentId">
                         Start chat
                     </button>
                 </template>
                 <template v-else>
-                    <i class="bi bi-robot text-primary"></i>
-                    <span class="fw-semibold" style="font-size:.9rem;">{{ activeSession.agent ? activeSession.agent.name : 'Agent' }}</span>
-                    <span class="badge bg-light text-muted border ms-1" style="font-size:.7rem;">
+                    <i class="bi bi-robot text-primary d-none d-md-inline"></i>
+                    <span class="fw-semibold text-truncate" style="font-size:.9rem;">{{ activeSession.agent ? activeSession.agent.name : 'Agent' }}</span>
+                    <span class="badge bg-light text-muted border ms-1 d-none d-sm-inline" style="font-size:.7rem;">
                         {{ activeSession.agent ? activeSession.agent.llm_provider || 'No LLM' : '' }}
                     </span>
                 </template>

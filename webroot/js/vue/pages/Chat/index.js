@@ -41,6 +41,13 @@
             var messagesEl = ref(null);
             var inputEl = ref(null);
 
+            // Mobile slide-in session sidebar. Desktop ignores this flag
+            // (CSS makes the sidebar permanently visible >=md).
+            var sidebarOpen = ref(false);
+            function openSidebar() { sidebarOpen.value = true; }
+            function closeSidebar() { sidebarOpen.value = false; }
+            function toggleSidebar() { sidebarOpen.value = !sidebarOpen.value; }
+
             // ── Data loading ─────────────────────────────────────────
 
             function loadSessions() {
@@ -247,6 +254,10 @@
                 loadingSessions: loadingSessions,
                 messagesEl: messagesEl,
                 inputEl: inputEl,
+                sidebarOpen: sidebarOpen,
+                openSidebar: openSidebar,
+                closeSidebar: closeSidebar,
+                toggleSidebar: toggleSidebar,
                 loadSession: loadSession,
                 newSession: newSession,
                 startSession: startSession,
