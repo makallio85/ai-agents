@@ -4,7 +4,7 @@
  */
 $this->assign('title', 'Agents');
 ?>
-<div id="agents-app">
+<div id="agents-app" v-cloak>
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div></div>
         <button class="btn btn-primary btn-sm" @click="showCreateModal = true">

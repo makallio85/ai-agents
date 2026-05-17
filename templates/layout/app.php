@@ -10,9 +10,14 @@
     <style>
         body { background: #f8f9fa; }
 
+        /* Vue mounts asynchronously — hide unrendered roots so users don't
+           see `{{ moustache }}` placeholders or `v-*` markup before mount. */
+        [v-cloak] { display: none !important; }
+
         .sidebar {
             width: 240px;
-            min-height: 100vh;
+            height: 100vh;
+            height: 100dvh;
             background: #1a1d23;
             color: #adb5bd;
             position: fixed;
@@ -20,6 +25,8 @@
             left: 0;
             z-index: 1040;
             padding: 0;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             transition: transform .2s ease;
         }
         .sidebar .brand {
@@ -71,6 +78,7 @@
         .main-content {
             margin-left: 240px;
             min-height: 100vh;
+            min-height: 100dvh;
         }
         .topbar {
             background: #fff;

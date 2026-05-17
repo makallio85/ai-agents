@@ -4,7 +4,7 @@
  */
 $this->assign('title', 'Permissions');
 ?>
-<div id="permissions-app">
+<div id="permissions-app" v-cloak>
 
     <div v-if="loading" class="text-center text-muted py-5">
         <div class="spinner-border spinner-border-sm me-2"></div> Loading roles…

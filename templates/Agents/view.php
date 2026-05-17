@@ -5,7 +5,7 @@
  */
 $this->assign('title', 'Agent details');
 ?>
-<div id="agent-view-app">
+<div id="agent-view-app" v-cloak>
     <div v-if="loading" class="text-center py-5 text-muted">
         <div class="spinner-border"></div>
     </div>

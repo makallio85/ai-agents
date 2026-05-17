@@ -4,7 +4,7 @@
  */
 $this->assign('title', 'My Profile');
 ?>
-<div id="profile-app">
+<div id="profile-app" v-cloak>
 
     <div v-if="profileLoading" class="text-center text-muted py-5">
         <div class="spinner-border spinner-border-sm me-2"></div> Loading…

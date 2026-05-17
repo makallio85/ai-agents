@@ -4,7 +4,7 @@
  */
 $this->assign('title', 'Logs');
 ?>
-<div id="logs-app">
+<div id="logs-app" v-cloak>
     <!-- Filters -->
     <div class="card border-0 shadow-sm mb-4">
         <div class="card-body py-3">

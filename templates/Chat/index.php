@@ -15,7 +15,10 @@ $this->assign('title', 'Chat');
 
     .chat-wrap {
         display: flex;
-        height: calc(100vh - 57px); /* subtract topbar height */
+        height: calc(100vh - 57px);  /* fallback for browsers without dvh */
+        height: calc(100dvh - 57px); /* dynamic viewport height — avoids the
+                                         iOS Safari URL-bar overflow that made
+                                         the page vertically scrollable. */
         overflow: hidden;
     }
 
