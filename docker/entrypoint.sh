@@ -31,6 +31,31 @@ until php -r "
 done
 echo "[entrypoint] DB reachable after ${attempts}s"
 
+# Ensure the <DB>_test database exists and the app user has full grants on it.
+# Idempotent — runs every boot so existing previews (whose db volume predates
+# docker/db/01-create-test-db.sh) pick up the fix without a volume wipe.
+# Skipped in production. Uses root creds (DB_PASSWORD doubles as
+# MARIADB_ROOT_PASSWORD in our compose).
+if [ "${CAKE_ENV:-development}" != "production" ] && [ -n "${DB_PASSWORD:-}" ]; then
+    php -r '
+        $host = getenv("DB_HOST") ?: "db";
+        $port = getenv("DB_PORT") ?: "3306";
+        $pass = getenv("DB_PASSWORD");
+        $testDb = (getenv("DB_NAME") ?: "app") . "_test";
+        $appUser = getenv("DB_USER") ?: "app";
+        try {
+            $pdo = new PDO("mysql:host={$host};port={$port}", "root", $pass,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$testDb}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            $pdo->exec("GRANT ALL PRIVILEGES ON `{$testDb}`.* TO \"{$appUser}\"@\"%\"");
+            $pdo->exec("FLUSH PRIVILEGES");
+            fwrite(STDOUT, "[entrypoint] Test DB {$testDb} ready (granted to {$appUser})\n");
+        } catch (Throwable $e) {
+            fwrite(STDERR, "[entrypoint] Test DB setup skipped: " . $e->getMessage() . PHP_EOL);
+        }
+    ' || true
+fi
+
 if [ "${RUN_MIGRATIONS:-false}" = "true" ] && [ -f bin/cake ]; then
     echo "[entrypoint] Running CakePHP migrations..."
     su -s /bin/sh www-data -c "bin/cake migrations migrate" 2>&1 \
