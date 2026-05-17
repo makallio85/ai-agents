@@ -102,6 +102,18 @@
                 is_enabled: true,
             });
 
+            // Integration permissions (issue #9) — per-agent grant set with
+            // catalog rendered as a checklist. The granted set is stored as a
+            // plain object keyed by action key so v-model on checkboxes can
+            // toggle individual entries without re-allocating the array.
+            var permissionsCatalog = ref({});
+            var permissionsGranted = reactive({});
+            var permissionsOriginal = ref({});
+            var loadingPermissions = ref(true);
+            var savingPermissions = ref(false);
+            var permissionsError = ref('');
+            var permissionsSaved = ref(false);
+
             // Message channels — single source of truth, keyed by channel key
             var channels = ref([]);
             var loadingChannels = ref(true);
@@ -155,6 +167,95 @@
                     loadingLogs.value = false;
                 }
             }
+
+            /**
+             * Loads the integration permissions catalog and the agent's current
+             * grant set. The catalog comes from the server (single source of
+             * truth) so adding a new action only requires a service-layer
+             * change, never a frontend redeploy. Permission errors leave the
+             * section empty so non-admins don't see a noisy alert.
+             */
+            async function loadPermissions() {
+                loadingPermissions.value = true;
+                permissionsError.value = '';
+                permissionsSaved.value = false;
+                try {
+                    var data = await Api.agents.permissions(agentId);
+                    var payload = data.data || {};
+                    permissionsCatalog.value = payload.catalog || {};
+                    var granted = payload.granted || [];
+                    // Reset the reactive map
+                    Object.keys(permissionsGranted).forEach(function (k) { delete permissionsGranted[k]; });
+                    granted.forEach(function (action) { permissionsGranted[action] = true; });
+                    permissionsOriginal.value = Object.assign({}, permissionsGranted);
+                } catch (e) {
+                    if (e.status === 403) {
+                        permissionsCatalog.value = {};
+                        Object.keys(permissionsGranted).forEach(function (k) { delete permissionsGranted[k]; });
+                    } else {
+                        permissionsError.value = e.message || 'Failed to load permissions';
+                    }
+                } finally {
+                    loadingPermissions.value = false;
+                }
+            }
+
+            /**
+             * POSTs the currently-checked actions back to the server. The
+             * server is the single arbiter of which keys are valid — unknown
+             * keys are dropped silently — so the UI never has to validate.
+             */
+            async function savePermissions() {
+                if (savingPermissions.value) { return; }
+                savingPermissions.value = true;
+                permissionsError.value = '';
+                permissionsSaved.value = false;
+                try {
+                    var actions = Object.keys(permissionsGranted).filter(function (k) {
+                        return permissionsGranted[k] === true;
+                    });
+                    var data = await Api.agents.updatePermissions(agentId, actions);
+                    var granted = (data.data && data.data.granted) || [];
+                    Object.keys(permissionsGranted).forEach(function (k) { delete permissionsGranted[k]; });
+                    granted.forEach(function (action) { permissionsGranted[action] = true; });
+                    permissionsOriginal.value = Object.assign({}, permissionsGranted);
+                    permissionsSaved.value = true;
+                } catch (e) {
+                    permissionsError.value = e.message || 'Failed to save permissions';
+                } finally {
+                    savingPermissions.value = false;
+                }
+            }
+
+            function resetPermissions() {
+                Object.keys(permissionsGranted).forEach(function (k) { delete permissionsGranted[k]; });
+                Object.keys(permissionsOriginal.value).forEach(function (k) {
+                    permissionsGranted[k] = permissionsOriginal.value[k];
+                });
+                permissionsError.value = '';
+                permissionsSaved.value = false;
+            }
+
+            var permissionsCatalogEntries = computed(function () {
+                var catalog = permissionsCatalog.value || {};
+                return Object.keys(catalog).map(function (integration) {
+                    return { integration: integration, actions: catalog[integration] || [] };
+                });
+            });
+
+            var permissionsDirty = computed(function () {
+                var current = Object.keys(permissionsGranted).filter(function (k) {
+                    return permissionsGranted[k] === true;
+                }).sort();
+                var original = Object.keys(permissionsOriginal.value).filter(function (k) {
+                    return permissionsOriginal.value[k] === true;
+                }).sort();
+                if (current.length !== original.length) { return true; }
+                for (var i = 0; i < current.length; i++) {
+                    if (current[i] !== original[i]) { return true; }
+                }
+                return false;
+            });
 
             /**
              * Pulls every registered channel + its admin payload in one round-trip.
@@ -290,6 +391,7 @@
                 load();
                 loadLogs();
                 loadChannels();
+                loadPermissions();
             });
 
             return {
@@ -321,6 +423,19 @@
                 openEdit: openEdit,
                 cancelEdit: cancelEdit,
                 saveChannel: saveChannel,
+
+                // Integration permissions (issue #9)
+                permissionsCatalog: permissionsCatalog,
+                permissionsCatalogEntries: permissionsCatalogEntries,
+                permissionsGranted: permissionsGranted,
+                permissionsOriginal: permissionsOriginal,
+                permissionsDirty: permissionsDirty,
+                loadingPermissions: loadingPermissions,
+                savingPermissions: savingPermissions,
+                permissionsError: permissionsError,
+                permissionsSaved: permissionsSaved,
+                savePermissions: savePermissions,
+                resetPermissions: resetPermissions,
             };
         },
     }).mount('#agent-view-app');

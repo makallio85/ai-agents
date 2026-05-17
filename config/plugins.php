@@ -27,8 +27,44 @@
   * - onlyCli: Load the plugin only in CLI mode. Default false.
   * - optional: Do not throw an exception if the plugin is not found. Default false.
   */
-return [
-    'DebugKit' => ['onlyDebug' => true, 'optional' => true],
+
+/*
+ * DebugKit auto-disables itself when the HTTP host TLD is not in its safe
+ * list (`localhost`, `invalid`, `test`, `example`, `local`, `internal`).
+ * On Coolify preview deploys the host is `*.dev.rocksoftware.fi`, which
+ * fails that check, and DebugKit emits one `warning` log line per request
+ * explaining why it disabled itself. The warning is harmless but it
+ * pollutes `logs/error.log` and was flagged in PR #31 review.
+ *
+ * Skip the plugin entirely on remote hosts (and only there) so the log
+ * stays quiet without losing DebugKit in genuine local-dev sessions. The
+ * CLI path is always allowed so commands like `bin/cake` keep working.
+ * Operators who want DebugKit on a remote preview can opt back in with
+ * DEBUG_KIT_FORCE_ENABLE=true.
+ */
+$debugKitSafeHost = (function (): bool {
+    if (PHP_SAPI === 'cli') {
+        return true;
+    }
+    if (filter_var(env('DEBUG_KIT_FORCE_ENABLE', false), FILTER_VALIDATE_BOOLEAN)) {
+        return true;
+    }
+    $host = (string)(env('HTTP_HOST', '') ?: '');
+    if ($host === '') {
+        return true;
+    }
+    // Strip an explicit port so `localhost:8765` still matches.
+    $host = strtolower(explode(':', $host)[0]);
+    $safeTlds = ['localhost', 'invalid', 'test', 'example', 'local', 'internal'];
+    foreach ($safeTlds as $tld) {
+        if ($host === $tld || str_ends_with($host, '.' . $tld)) {
+            return true;
+        }
+    }
+    return false;
+})();
+
+$plugins = [
     'Bake' => ['onlyCli' => true, 'optional' => true],
     'Migrations' => ['onlyCli' => true],
 
@@ -42,3 +78,9 @@ return [
     // AI Agents
     'DevOpsOrchestrator' => ['routes' => true],
 ];
+
+if ($debugKitSafeHost) {
+    $plugins = ['DebugKit' => ['onlyDebug' => true, 'optional' => true]] + $plugins;
+}
+
+return $plugins;

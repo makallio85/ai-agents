@@ -184,6 +184,67 @@ $this->assign('title', 'Agent details');
     </template>
 
     <!--
+        Integration permissions — per-agent grant set (issue #9). Each
+        integration shows its catalog of named actions as a checklist; the
+        deny-all default is enforced server-side (no row = no permission).
+        The catalog is rendered from server data so adding a new action does
+        not require a frontend redeploy.
+    -->
+    <div v-if="agent" class="row g-4 mt-1">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex align-items-center">
+                    <h6 class="mb-0 fw-semibold"><i class="bi bi-shield-lock text-primary me-1"></i> Integration permissions</h6>
+                    <span class="ms-3 small text-muted">What this agent is allowed to do against each integration. Deny by default.</span>
+                </div>
+                <div class="card-body">
+                    <div v-if="loadingPermissions" class="text-center py-3 text-muted">
+                        <div class="spinner-border spinner-border-sm"></div>
+                    </div>
+                    <div v-else-if="permissionsError" class="alert alert-danger py-2 small mb-0">{{ permissionsError }}</div>
+                    <div v-else-if="!permissionsCatalogEntries.length" class="text-muted small">No integrations are gated by permissions yet.</div>
+                    <div v-else>
+                        <div v-if="permissionsSaved" class="alert alert-success py-2 small mb-3">
+                            <i class="bi bi-check-circle me-1"></i> Permissions saved.
+                        </div>
+                        <template v-for="(group, gIdx) in permissionsCatalogEntries" :key="group.integration">
+                            <div :class="gIdx > 0 ? 'mt-4 pt-4 border-top' : ''">
+                                <h6 class="mb-3 fw-semibold text-uppercase small text-muted">{{ group.integration }}</h6>
+                                <div class="row g-2">
+                                    <div v-for="item in group.actions" :key="item.action" class="col-md-6">
+                                        <div class="form-check">
+                                            <input
+                                                class="form-check-input"
+                                                type="checkbox"
+                                                :id="'perm-' + item.action"
+                                                v-model="permissionsGranted[item.action]"
+                                                :disabled="savingPermissions"
+                                            />
+                                            <label class="form-check-label" :for="'perm-' + item.action">
+                                                <span class="fw-medium">{{ item.label }}</span>
+                                                <code class="ms-2 small text-muted">{{ item.action }}</code>
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <div class="mt-4 d-flex gap-2">
+                            <button class="btn btn-sm btn-primary" @click="savePermissions" :disabled="savingPermissions || !permissionsDirty">
+                                <span v-if="savingPermissions" class="spinner-border spinner-border-sm me-1"></span>
+                                Save permissions
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @click="resetPermissions" :disabled="savingPermissions || !permissionsDirty">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!--
         Message Channels — unified panel for per-agent channel configuration
         (issue #15). Each channel sub-section reads its data from the same
         /api/v1/message-channels endpoint and renders its own form. To add a

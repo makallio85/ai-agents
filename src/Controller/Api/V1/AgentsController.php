@@ -3,17 +3,22 @@ declare(strict_types=1);
 
 namespace App\Controller\Api\V1;
 
-use App\Service\AgentService;
+use App\Service\AgentIntegrationPermissionService;
 use App\Service\AgentLogService;
+use App\Service\AgentService;
 
 class AgentsController extends AppController
 {
     private AgentService $agentService;
+    private AgentLogService $logService;
+    private AgentIntegrationPermissionService $permissionService;
 
     public function initialize(): void
     {
         parent::initialize();
-        $this->agentService = new AgentService(new AgentLogService());
+        $this->logService = new AgentLogService();
+        $this->agentService = new AgentService($this->logService);
+        $this->permissionService = new AgentIntegrationPermissionService();
     }
 
     /**
@@ -98,6 +103,88 @@ class AgentsController extends AppController
         } catch (\RuntimeException $e) {
             $this->error($e->getMessage(), [], 422);
         }
+    }
+
+    /**
+     * GET /api/v1/agents/permissions/:id
+     *
+     * Returns the full integration-permission catalog plus the set of action
+     * keys currently granted to this agent. The frontend renders the catalog
+     * as a checklist with each item pre-checked if its key is in `granted`.
+     *
+     * Response shape:
+     *   {
+     *     "catalog": { "github": [ {"action": "...", "label": "..."}, ... ] },
+     *     "granted": ["github.issues.read", ...]
+     *   }
+     */
+    public function permissions(int $id): void
+    {
+        $this->requirePermission('agents', 'read');
+        $agent = $this->agentService->findById($id);
+
+        if ($agent === null) {
+            $this->error('Agent not found', [], 404);
+            return;
+        }
+
+        $this->success([
+            'catalog' => $this->permissionService->getCatalog(),
+            'granted' => $this->permissionService->loadForAgent($id)->all(),
+        ]);
+    }
+
+    /**
+     * POST /api/v1/agents/update-permissions/:id
+     *
+     * Body: { actions: ["github.issues.read", ...] }
+     *
+     * Replaces the agent's permission grants with the supplied set of action
+     * keys. Unknown action keys are silently dropped by the service, so the
+     * stored set always matches the canonical catalog. Writes an audit row to
+     * agent_logs so operators can see who changed the grants and when.
+     */
+    public function updatePermissions(int $id): void
+    {
+        $this->requirePermission('agents', 'update');
+        $agent = $this->agentService->findById($id);
+
+        if ($agent === null) {
+            $this->error('Agent not found', [], 404);
+            return;
+        }
+
+        $rawActions = $this->request->getData('actions');
+        if (!is_array($rawActions)) {
+            $this->error('actions must be an array of action keys', [], 422);
+            return;
+        }
+
+        $actions = [];
+        foreach ($rawActions as $action) {
+            if (is_string($action) && $action !== '') {
+                $actions[] = $action;
+            }
+        }
+
+        $this->permissionService->replaceForAgent($id, $actions);
+
+        $granted = $this->permissionService->loadForAgent($id)->all();
+        $user = $this->getCurrentUser();
+        $this->logService->log(
+            agentId: $id,
+            executionId: 'permissions-update',
+            level: 'info',
+            message: sprintf('Integration permissions updated (%d grant(s)).', count($granted)),
+            context: ['granted' => $granted],
+            userId: $user?->id,
+            resultState: 'success',
+        );
+
+        $this->success([
+            'catalog' => $this->permissionService->getCatalog(),
+            'granted' => $granted,
+        ]);
     }
 
     /**

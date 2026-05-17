@@ -8,7 +8,7 @@ use App\Integration\Llm\LlmResponse;
 use App\Integration\Llm\OpenAiClient;
 use App\Integration\Llm\Tool\ToolCall;
 use App\Integration\Llm\Tool\ToolCallResponse;
-use App\Integration\Llm\Tool\ToolDefinition;
+use App\Service\AgentLogService;
 use Cake\Log\LogTrait;
 use RuntimeException;
 
@@ -37,14 +37,31 @@ class AgentLoopService
 
     private const MAX_ITERATIONS = 10;
 
+    /**
+     * @param AgentLogService|null $logService Optional logger for permission denials (issue #9).
+     * @param int|null $agentId Required together with $logService for permission-denial audit rows.
+     * @param int|null $userId Optional user context for permission-denial audit rows.
+     * @param string|null $executionId Required together with $logService for permission-denial audit rows.
+     */
     public function __construct(
         private readonly OpenAiClient $client,
         private readonly GitHubToolProvider $toolProvider,
+        private readonly ?AgentLogService $logService = null,
+        private readonly ?int $agentId = null,
+        private readonly ?int $userId = null,
+        private readonly ?string $executionId = null,
     ) {
     }
 
     /**
      * Runs the agentic loop until the LLM produces a final text response.
+     *
+     * Tool-level enforcement of integration permissions (issue #9) lives in
+     * GitHubToolProvider — getDefinitions() already returns only the tools
+     * the agent has been granted, and dispatch() throws
+     * PermissionDeniedException when an action falls outside the grant set.
+     * This class only catches that exception, surfaces it to the LLM as a
+     * TOOL_ERROR result, and writes an audit row to agent_logs.
      *
      * @param LlmMessage[] $messages Full conversation history including system prompt.
      * @param array<string, mixed> $options Provider options (model, temperature, etc.).
@@ -134,6 +151,9 @@ class AgentLoopService
 
         try {
             $result = $this->toolProvider->dispatch($toolCall->name, $toolCall->arguments);
+        } catch (PermissionDeniedException $e) {
+            $result = "TOOL_ERROR: {$e->getMessage()}";
+            $this->logPermissionDenial($e);
         } catch (\Throwable $e) {
             // Return a structured error string so the LLM can accurately describe what went wrong.
             // Prefixing with TOOL_ERROR prevents the model from confusing this with a normal result.
@@ -169,5 +189,38 @@ class AgentLoopService
         if ($encoded !== false) {
             $onEvent($encoded);
         }
+    }
+
+    /**
+     * Writes an audit-log entry for a denied tool invocation so operators
+     * can see every attempt the agent made to exceed its grant set. Falls
+     * back to the framework log when no AgentLogService is wired.
+     */
+    private function logPermissionDenial(PermissionDeniedException $e): void
+    {
+        $this->log(
+            "AgentLoop permission denied: tool={$e->tool} action={$e->requiredAction}",
+            'warning',
+            ['scope' => 'agent_loop_permission_denied'],
+        );
+
+        if ($this->logService === null || $this->agentId === null || $this->executionId === null) {
+            return;
+        }
+
+        $this->logService->log(
+            agentId: $this->agentId,
+            executionId: $this->executionId,
+            level: 'warning',
+            message: sprintf(
+                'Permission denied for tool "%s" — required action "%s" was not granted.',
+                $e->tool,
+                $e->requiredAction,
+            ),
+            context: ['tool' => $e->tool, 'required_action' => $e->requiredAction],
+            userId: $this->userId,
+            resultState: 'denied',
+            errorMessage: $e->getMessage(),
+        );
     }
 }

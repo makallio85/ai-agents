@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Service\AgentTools;
 
 use App\Integration\Llm\Tool\ToolDefinition;
+use App\Service\AgentIntegrationPermissionService;
+use App\Service\AgentPermissionSet;
 use DevOpsOrchestrator\Integration\GitHub\GitHubClientInterface;
 
 /**
@@ -23,17 +25,53 @@ use DevOpsOrchestrator\Integration\GitHub\GitHubClientInterface;
  */
 class GitHubToolProvider
 {
+    private readonly AgentIntegrationPermissionService $permissionService;
+
+    /**
+     * @param AgentPermissionSet|null $permissionSet When supplied, getDefinitions()
+     *   filters out tools whose required action has not been granted and dispatch()
+     *   throws PermissionDeniedException for ungranted actions (issue #9). When null
+     *   (legacy / non-agent callers), every tool is exposed and no enforcement occurs.
+     * @param AgentIntegrationPermissionService|null $permissionService Resolves
+     *   tool→action; defaults to a fresh instance so callers don't have to wire it.
+     */
     public function __construct(
         private readonly GitHubClientInterface $github,
+        private readonly ?AgentPermissionSet $permissionSet = null,
+        ?AgentIntegrationPermissionService $permissionService = null,
     ) {
+        $this->permissionService = $permissionService ?? new AgentIntegrationPermissionService();
     }
 
     /**
-     * Returns the full list of ToolDefinitions to offer to the LLM.
+     * Returns the list of ToolDefinitions the LLM is allowed to see.
+     *
+     * When a permission set has been injected, definitions for tools whose
+     * required action has not been granted to the agent are dropped — the
+     * LLM cannot even request them. Tools not gated by an action are always
+     * exposed. When no permission set is supplied, every tool is returned.
      *
      * @return ToolDefinition[]
      */
     public function getDefinitions(): array
+    {
+        $all = $this->buildAllDefinitions();
+        if ($this->permissionSet === null) {
+            return $all;
+        }
+
+        return array_values(array_filter(
+            $all,
+            fn(ToolDefinition $tool) => $this->isToolAllowed($tool->name),
+        ));
+    }
+
+    /**
+     * Builds every ToolDefinition supported by the provider.
+     *
+     * @return ToolDefinition[]
+     */
+    private function buildAllDefinitions(): array
     {
         return [
             new ToolDefinition(
@@ -230,9 +268,13 @@ class GitHubToolProvider
      * @param string $name Tool name as requested by the LLM.
      * @param array<string, mixed> $args Decoded JSON arguments from the LLM.
      * @throws \InvalidArgumentException When the tool name is unknown.
+     * @throws PermissionDeniedException When the agent has no grant for the
+     *   action this tool requires (only when a permission set is injected).
      */
     public function dispatch(string $name, array $args): string
     {
+        $this->assertToolAllowed($name);
+
         return match ($name) {
             'github_list_repos' => $this->listRepos(),
             'github_get_file' => $this->getFile($args),
@@ -517,5 +559,42 @@ class GitHubToolProvider
             $c['commit']['author']['name'] ?? '',
         ), $commits);
         return implode("\n", $lines);
+    }
+
+    /**
+     * Returns true when the agent is allowed to call the named tool. Tools
+     * that are not gated by an action are always allowed; if no permission
+     * set was injected the provider is permissive (legacy callers).
+     */
+    private function isToolAllowed(string $toolName): bool
+    {
+        if ($this->permissionSet === null) {
+            return true;
+        }
+        $required = $this->permissionService->getActionForTool($toolName);
+        if ($required === null) {
+            return true;
+        }
+
+        return $this->permissionSet->has($required);
+    }
+
+    /**
+     * Throws PermissionDeniedException when the agent has no grant for the
+     * action the named tool requires. No-op when no permission set is
+     * injected.
+     */
+    private function assertToolAllowed(string $toolName): void
+    {
+        if ($this->permissionSet === null) {
+            return;
+        }
+        $required = $this->permissionService->getActionForTool($toolName);
+        if ($required === null) {
+            return;
+        }
+        if (!$this->permissionSet->has($required)) {
+            throw new PermissionDeniedException($toolName, $required);
+        }
     }
 }

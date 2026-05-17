@@ -113,6 +113,12 @@ var Api = (function () {
         update: function (id, data) { return _coreRequest('PUT', 'agents/update/' + id, data); },
         del: function (id) { return _coreRequest('DELETE', 'agents/delete/' + id); },
         logs: function (id) { return _coreRequest('GET', 'agents/logs/' + id); },
+        // Per-agent integration permissions (issue #9). The GET response carries
+        // the full catalog so the UI can render it without a second round-trip.
+        permissions: function (id) { return _coreRequest('GET', 'agents/permissions/' + id); },
+        updatePermissions: function (id, actions) {
+            return _coreRequest('POST', 'agents/update-permissions/' + id, { actions: actions });
+        },
     };
 
     /**

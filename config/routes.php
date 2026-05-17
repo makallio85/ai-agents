@@ -96,6 +96,10 @@ return function (RouteBuilder $routes): void {
         $builder->connect('/agents/update/{id}', ['controller' => 'Agents', 'action' => 'update'], ['_name' => 'api.v1.agents.update', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/agents/delete/{id}', ['controller' => 'Agents', 'action' => 'delete'], ['_name' => 'api.v1.agents.delete', 'id' => '\d+', 'pass' => ['id']]);
         $builder->connect('/agents/logs/{id}', ['controller' => 'Agents', 'action' => 'logs'], ['_name' => 'api.v1.agents.logs', 'id' => '\d+', 'pass' => ['id']]);
+        // Per-agent integration permission management (issue #9). GET returns the
+        // catalog + currently granted action keys; POST replaces the grant set.
+        $builder->connect('/agents/permissions/{id}', ['controller' => 'Agents', 'action' => 'permissions'], ['_method' => 'GET', '_name' => 'api.v1.agents.permissions', 'id' => '\d+', 'pass' => ['id']]);
+        $builder->connect('/agents/update-permissions/{id}', ['controller' => 'Agents', 'action' => 'updatePermissions'], ['_method' => 'POST', '_name' => 'api.v1.agents.update_permissions', 'id' => '\d+', 'pass' => ['id']]);
         // Per-agent message channels (Slack, WhatsApp, ...) — unified surface
         // for the "MessageChannels" concept (issue #15). MessageChannelsController
         // delegates to MessageChannelRegistry so new channel types appear without

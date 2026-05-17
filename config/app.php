@@ -183,6 +183,12 @@ return [
         'trace' => true,
         'ignoredDeprecationPaths' => [],
         'traceFormat' => null,
+        // ApiAwareExceptionRenderer emits a JSON envelope for `/api/*`
+        // requests so the Vue frontend never gets an HTML error page in
+        // response to an API call (fixes the "Unexpected token '<'"
+        // failures reported on PR #31). Non-API routes still render
+        // the standard HTML error template via the parent renderer.
+        'exceptionRenderer' => \App\Error\ApiAwareExceptionRenderer::class,
     ],
 
     /*
