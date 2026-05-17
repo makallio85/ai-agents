@@ -1,10 +1,16 @@
 <?php
 declare(strict_types=1);
 
+use App\Database\RolePermissionMatrix;
 use Migrations\BaseSeed;
 
 /**
  * InitialData seed.
+ *
+ * Idempotent — re-running the seed only inserts rows that are missing.
+ * Reads its permission set from {@see RolePermissionMatrix} so the seed,
+ * the BackfillRolePermissions migration and the PermissionsFixture all
+ * share a single source of truth.
  */
 class InitialDataSeed extends BaseSeed
 {
@@ -49,42 +55,34 @@ class InitialDataSeed extends BaseSeed
             $roleIds[$row['slug']] = (int)$row['id'];
         }
 
-        // Permissions — skip modules that already have entries for these roles
-        $modules = ['agents', 'chat', 'users', 'roles', 'labels', 'github_integrations', 'execution_history', 'agent_logs', 'prompt_versions'];
-        $actions = ['read', 'create', 'update', 'delete'];
+        // Permissions — pull the canonical matrix and insert only what's missing.
+        if (!empty($roleIds)) {
+            $existingPerms = $adapter->fetchAll(
+                'SELECT role_id, module, action FROM permissions WHERE role_id IN ('
+                . implode(',', array_values($roleIds)) . ')'
+            );
+            $permSet = [];
+            foreach ($existingPerms as $p) {
+                $permSet[$p['role_id'] . '|' . $p['module'] . '|' . $p['action']] = true;
+            }
 
-        $existingPerms = $adapter->fetchAll(
-            "SELECT role_id, module, action FROM permissions WHERE role_id IN (" . implode(',', array_values($roleIds)) . ")"
-        );
-        $permSet = [];
-        foreach ($existingPerms as $p) {
-            $permSet[$p['role_id'] . '|' . $p['module'] . '|' . $p['action']] = true;
-        }
-
-        $permissionsData = [];
-        foreach ($modules as $module) {
-            foreach ($actions as $action) {
-                foreach (['administrator', 'superuser'] as $slug) {
-                    $roleId = $roleIds[$slug] ?? null;
-                    if ($roleId && !isset($permSet[$roleId . '|' . $module . '|' . $action])) {
-                        $permissionsData[] = ['role_id' => $roleId, 'module' => $module, 'action' => $action, 'created' => $now, 'modified' => $now];
-                    }
+            $permissionsData = [];
+            foreach (RolePermissionMatrix::rows($roleIds) as $row) {
+                $key = $row['role_id'] . '|' . $row['module'] . '|' . $row['action'];
+                if (!isset($permSet[$key])) {
+                    $permissionsData[] = [
+                        'role_id' => $row['role_id'],
+                        'module' => $row['module'],
+                        'action' => $row['action'],
+                        'created' => $now,
+                        'modified' => $now,
+                    ];
                 }
             }
-        }
 
-        // User role — read only on agents
-        $userId = $roleIds['user'] ?? null;
-        if ($userId) {
-            foreach ([['agents', 'read']] as [$module, $action]) {
-                if (!isset($permSet[$userId . '|' . $module . '|' . $action])) {
-                    $permissionsData[] = ['role_id' => $userId, 'module' => $module, 'action' => $action, 'created' => $now, 'modified' => $now];
-                }
+            if (!empty($permissionsData)) {
+                $this->table('permissions')->insert($permissionsData)->saveData();
             }
-        }
-
-        if (!empty($permissionsData)) {
-            $this->table('permissions')->insert($permissionsData)->saveData();
         }
 
         // Labels — skip if already present
