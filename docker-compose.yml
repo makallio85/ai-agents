@@ -44,7 +44,6 @@ services:
       - RUN_MIGRATIONS=true
     expose:
       - "80"
-    mem_limit: 1500m
     volumes:
       # Host-mounted agent auth + session memory. Files are owned by host uid
       # 1000; image re-UIDs www-data to 1000 so they're readable inside.
@@ -84,7 +83,6 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD}
       - RUN_MIGRATIONS=false
-    mem_limit: 1500m
     volumes:
       - /home/makallio85/.claude:/home/www-data/.claude
       - /home/makallio85/.claude.json:/home/www-data/.claude.json
@@ -109,7 +107,6 @@ services:
       # PHPUnit can run inside Coolify previews. Only runs when the data
       # volume is empty — rebuild the preview if its DB volume already exists.
       - ./docker/db:/docker-entrypoint-initdb.d:ro
-    mem_limit: 512m
     healthcheck:
       test: ["CMD-SHELL", "mariadb-admin ping -h localhost -p${DB_PASSWORD} || exit 1"]
       interval: 10s
@@ -122,7 +119,6 @@ services:
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
     volumes:
       - redis_data:/data
-    mem_limit: 128m
     healthcheck:
       test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
       interval: 10s
