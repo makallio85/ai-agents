@@ -69,7 +69,7 @@ services:
   worker:
     # Reuses the app image so we only build once.
     image: ${COOLIFY_RESOURCE_UUID:-local}-app:${BUILD_TARGET:-prod}
-    command: ["sh", "-c", "while true; do php bin/cake queue worker --quiet --verbose || sleep 10; done"]
+    command: ["sh", "-c", "while true; do bin/cake queue worker --quiet --verbose; sleep 10; done"]
     environment:
       - CAKE_ENV=${CAKE_ENV:-development}
       - DEBUG=${DEBUG:-true}
